@@ -47,9 +47,20 @@ async def get_cards(
     limit: int = 20,
     search: Optional[str] = None
 ) -> tuple[list[Card], int]:
-    """获取卡片列表"""
-    # 构建基础查询
-    query: Select = select(Card)
+    """
+    获取卡片列表
+    
+    参数:
+        db: 数据库会话
+        skip: 跳过的记录数（用于分页）
+        limit: 返回的最大记录数
+        search: 搜索关键词（可选）
+        
+    返回:
+        tuple[list[Card], int]: 卡片列表和总记录数
+    """
+    # 构建基础查询，添加按创建时间倒序排序
+    query: Select = select(Card).order_by(Card.created_at.desc())
     count_query: Select = select(Card)
 
     # 如果有搜索关键词，添加搜索条件
@@ -170,4 +181,27 @@ def update_review_progress(
     
     db.commit()
     db.refresh(db_card)
+    return db_card
+
+
+async def update_next_review(
+    db: AsyncSession,
+    *,
+    db_card: Card,
+    next_review_at: datetime
+) -> Card:
+    """
+    修改卡片的下次复习时间
+    
+    参数:
+        db: 数据库会话
+        db_card: 要修改的卡片
+        next_review_at: 新的下次复习时间
+        
+    返回:
+        Card: 更新后的卡片
+    """
+    db_card.next_review_at = next_review_at
+    await db.commit()
+    await db.refresh(db_card)
     return db_card 

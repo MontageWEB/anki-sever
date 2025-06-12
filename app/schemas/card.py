@@ -52,6 +52,26 @@ class CardUpdate(CardBase):
     pass
 
 
+class NextReviewUpdate(BaseModel):
+    """
+    修改下次复习时间的请求模型
+    """
+    next_review_at: datetime = Field(
+        ...,
+        description="下次复习时间"
+    )
+
+
+class ReviewUpdate(BaseModel):
+    """
+    更新复习状态的请求模型
+    """
+    remembered: bool = Field(
+        ...,
+        description="是否记住了卡片内容"
+    )
+
+
 class CardInDB(CardBase):
     """
     数据库中的卡片模型

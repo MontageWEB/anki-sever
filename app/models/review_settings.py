@@ -1,50 +1,24 @@
-from datetime import datetime, timezone
+"""
+复习设置的数据库模型
+"""
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from sqlalchemy.sql import expression
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 
 from app.models.base import Base
 
 
-class ReviewSettings(Base):
-    """复习设置表"""
+class ReviewSetting(Base):
+    """复习间隔设置模型"""
     __tablename__ = "review_settings"
 
     id = Column(Integer, primary_key=True, index=True)
-    review_count = Column(
-        Integer,
-        nullable=False,
-        comment="第几次复习"
-    )
-    interval_days = Column(
-        Integer,
-        nullable=False,
-        comment="复习间隔天数"
-    )
-    description = Column(
-        String(255),
-        nullable=True,
-        comment="设置描述"
-    )
-    is_active = Column(
-        Boolean, 
-        nullable=False, 
-        server_default=expression.true(),
-        comment="是否启用"
-    )
-
-    # 时间相关字段
-    created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
-    updated_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
+    review_count = Column(Integer, nullable=False, comment="复习次数")
+    interval_days = Column(Integer, nullable=False, comment="间隔天数")
+    description = Column(String(100), nullable=False, comment="设置描述")
+    is_active = Column(Boolean, default=True, nullable=False, comment="是否启用")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     def __repr__(self) -> str:
-        return f"<ReviewSettings(review_count={self.review_count}, interval_days={self.interval_days})>" 
+        return f"ReviewSetting(id={self.id}, review_count={self.review_count}, interval_days={self.interval_days})" 

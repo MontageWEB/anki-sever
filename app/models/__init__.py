@@ -3,5 +3,5 @@
 """ 
 
 from app.models.base import Base
-from app.models.card import Card
-from app.models.review_settings import ReviewSettings 
+from app.models.card import Card  # noqa
+from app.models.review_settings import ReviewSetting  # noqa 

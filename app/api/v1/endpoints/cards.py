@@ -9,7 +9,9 @@ from app.schemas.card import (
     CardCreate,
     CardUpdate,
     CardResponse,
-    CardListResponse
+    CardListResponse,
+    NextReviewUpdate,
+    ReviewUpdate
 )
 
 router = APIRouter()
@@ -81,4 +83,59 @@ async def delete_card(
     db_card = await crud_card.get_card(db=db, card_id=card_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
-    await crud_card.delete_card(db=db, db_card=db_card) 
+    await crud_card.delete_card(db=db, db_card=db_card)
+
+
+@router.put("/{card_id}/next-review", response_model=CardResponse)
+async def update_next_review(
+    card_id: int,
+    next_review: NextReviewUpdate,
+    db: AsyncSession = Depends(deps.get_db)
+) -> CardResponse:
+    """修改卡片的下次复习时间，不影响复习次数和复习规则"""
+    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    if db_card is None:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return await crud_card.update_next_review(
+        db=db,
+        db_card=db_card,
+        next_review_at=next_review.next_review_at
+    )
+
+
+@router.get("/review", response_model=CardListResponse)
+async def get_cards_for_review(
+    db: AsyncSession = Depends(deps.get_db),
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20
+) -> CardListResponse:
+    """获取需要复习的卡片列表"""
+    skip = (page - 1) * per_page
+    cards, total = await crud_card.get_cards_to_review(
+        db=db,
+        skip=skip,
+        limit=per_page
+    )
+    return CardListResponse(
+        total=total,
+        page=page,
+        per_page=per_page,
+        items=cards
+    )
+
+
+@router.post("/{card_id}/review", response_model=CardResponse)
+async def update_review_status(
+    card_id: int,
+    review: ReviewUpdate,
+    db: AsyncSession = Depends(deps.get_db)
+) -> CardResponse:
+    """更新卡片的复习状态"""
+    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    if db_card is None:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return await crud_card.update_review_progress(
+        db=db,
+        db_card=db_card,
+        remembered=review.remembered
+    ) 
