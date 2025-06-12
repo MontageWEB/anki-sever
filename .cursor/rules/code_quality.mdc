@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Python 代码质量规范
+
+## 类型检查和代码分析
+
+1. 启用基本类型检查：typeCheckingMode = "basic"
+2. 将废弃特性警告视为错误：reportDeprecated = "error"
+
+## 代码格式化
+
+1. 使用 black 作为 Python 代码格式化工具
+2. 在保存时自动格式化代码
+3. 代码行长度限制为 79 字符
+
+## Linting 配置
+
+### pylint 配置
+1. 禁用文档字符串检查：--disable=C0111
+2. 最大行长度：--max-line-length=79
+3. 将 datetime.utcnow 废弃警告视为错误：--deprecated-datetime-utcnow=error
+
+### flake8 配置
+1. 最大行长度：--max-line-length=79
+2. 启用检查：F（错误）, E（PEP8），W（警告），C90（复杂度）
+3. 忽略规则：E203（空格），W503（换行）
+
+## 导入排序
+
+1. 使用 black 配置文件
+2. 在保存时自动组织导入语句
+
+## 测试配置
+
+1. 使用 pytest 作为测试框架
+2. 禁用 unittest 和 nosetest
+3. 测试文件放在 tests 目录下
+
+## 文件排除
+
+### 排除文件
+1. __pycache__ 目录
+2. .pytest_cache 目录
+3. .pyc 文件
+4. .coverage 文件
+5. htmlcov 目录
+
+### 搜索排除
+1. venv 目录
+2. *.egg-info 文件

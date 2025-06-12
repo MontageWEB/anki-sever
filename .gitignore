@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 测试
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# 日志
+*.log
+
+# 本地配置
+.env
+.env.local
+.env.*.local
+
+# 数据库
+*.sqlite3
+*.db
+
+# 其他
+.directory
+.Trash-*
+$RECYCLE.BIN/
+Desktop.ini
+Thumbs.db 

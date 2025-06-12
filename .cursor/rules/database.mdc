@@ -1,0 +1,33 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 数据库开发规范
+
+## 迁移规范
+
+1. 使用 alembic 管理数据库迁移
+2. 迁移前确保所有模型都在 env.py 中导入
+3. 迁移前确保安装了所有依赖：python-dateutil, black
+4. 使用 UTC 时区存储所有时间
+
+## 迁移前检查步骤
+
+1. 验证数据库连接配置是否正确
+2. 使用 mysql -u user -p 测试数据库连接
+3. 检查 alembic history 确保迁移链正确
+4. 确保 down_revision 指向正确的父迁移
+5. 检查是否使用了数据库不支持的特性
+
+## MySQL 最佳实践
+
+1. MySQL 8.0 不支持 WHERE 子句的部分索引
+2. 使用普通唯一索引 + is_active 字段替代
+3. 时区相关字段使用 DATETIME 类型，不使用 TIMESTAMP
+4. 默认使用 utf8mb4 字符集和 utf8mb4_unicode_ci 排序规则
+
+## 时间处理
+
+1. 使用 datetime.now(UTC) 替代已弃用的 datetime.utcnow
+2. 在 SQLAlchemy 模型中使用 lambda 包装时间函数：default=lambda: datetime.now(UTC)

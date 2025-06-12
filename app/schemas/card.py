@@ -1,0 +1,88 @@
+"""
+知识卡片的数据验证模型
+使用 Pydantic 模型进行：
+1. 请求数据验证
+2. 响应数据序列化
+3. API 文档生成
+"""
+
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, Field
+
+
+class CardBase(BaseModel):
+    """
+    卡片基础模型
+    包含创建和更新卡片时共用的字段
+    
+    Field 参数说明：
+    - ...: 表示该字段是必需的
+    - max_length: 最大长度限制
+    - description: 字段描述，用于API文档
+    """
+    question: str = Field(
+        ...,
+        max_length=100,
+        description="知识点/问题"
+    )
+    answer: str = Field(
+        ...,
+        max_length=500,
+        description="答案/解释"
+    )
+
+
+class CardCreate(CardBase):
+    """
+    创建卡片的请求模型
+    继承自 CardBase，不需要额外的字段
+    其他字段（如 review_count, next_review_at）会在创建时自动设置
+    """
+    pass
+
+
+class CardUpdate(CardBase):
+    """
+    更新卡片的请求模型
+    所有字段都是可选的，只更新提供的字段
+    
+    Optional 表示字段可以为 None
+    """
+    pass
+
+
+class CardInDB(CardBase):
+    """
+    数据库中的卡片模型
+    包含从数据库读取的完整卡片信息
+    
+    Config.from_attributes = True 允许从 ORM 模型创建 Pydantic 模型
+    """
+    id: int
+    review_count: int
+    next_review_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CardResponse(CardInDB):
+    """
+    卡片响应模型
+    用于 API 响应
+    目前与 CardInDB 相同，但可以在需要时添加额外的字段或隐藏某些字段
+    """
+    pass
+
+
+class CardListResponse(BaseModel):
+    """
+    卡片列表响应模型
+    """
+    total: int
+    page: int
+    per_page: int
+    items: list[CardInDB] 
