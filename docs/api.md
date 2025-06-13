@@ -122,11 +122,11 @@
 ```
 - 响应: 同创建卡片的响应
 
-### 3. 复习设置管理
+### 3. 复习规则管理
 
-#### 3.1 获取复习间隔设置
-- 路径: GET `/review-settings`
-- 描述: 获取所有复习间隔设置
+#### 3.1 获取复习规则列表
+- 路径: GET `/review-rules`
+- 描述: 获取所有复习规则，按复习次数排序
 - 响应:
 ```json
 {
@@ -135,11 +135,34 @@
             "id": 1,
             "review_count": 1,
             "interval_days": 1,
-            "description": "第1次复习：1天后复习",
-            "is_active": true,
             "created_at": "2024-05-12T10:30:00Z",
             "updated_at": "2024-05-12T10:30:00Z"
         }
     ]
 }
 ```
+
+#### 3.2 批量更新复习规则
+- 路径: PUT `/review-rules`
+- 描述: 批量更新复习规则
+- 请求体:
+```json
+{
+    "rules": [
+        {
+            "review_count": 1,
+            "interval_days": 1
+        },
+        {
+            "review_count": 2,
+            "interval_days": 2
+        }
+    ]
+}
+```
+- 响应: 同获取规则列表的响应
+
+#### 3.3 重置复习规则
+- 路径: POST `/review-rules/reset`
+- 描述: 重置复习规则为默认值
+- 响应: 同获取规则列表的响应
