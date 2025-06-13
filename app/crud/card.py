@@ -15,6 +15,7 @@ from app.models.card import Card
 from app.schemas.card import CardCreate, CardUpdate
 from app.core.config import settings
 from app.core.review_strategy import ConfigurableReviewStrategy
+from app.crud import review_rule
 
 # 创建可配置的复习策略实例
 review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
@@ -194,34 +195,25 @@ async def update_review_progress(
         # 如果是第一次复习，设置首次复习时间
         if db_card.review_count == 0:
             db_card.first_review_at = now
-        
         # 增加复习次数
         db_card.review_count += 1
-        
-        # 计算下次复习时间
-        # 使用首次复习时间作为基准，加上累计间隔天数
+        # 计算下次复习时间，实时查 review_rules 表
         total_days = 0
         for i in range(1, db_card.review_count + 1):
-            # 查找当前复习次数对应的规则
-            for rule in review_strategy.rules:
-                if rule.min_count <= i <= rule.max_count:
-                    total_days += rule.days
-                    break
+            result = await db.execute(
+                select(review_rule.ReviewRule.interval_days).where(review_rule.ReviewRule.review_count == i)
+            )
+            interval_days = result.scalar_one_or_none()
+            if interval_days is not None:
+                total_days += interval_days
             else:
-                # 如果没有找到匹配的规则，使用最后一个规则
-                if review_strategy.rules:
-                    total_days += review_strategy.rules[-1].days
-                else:
-                    total_days += 1
-        
-        # 使用首次复习时间加上累计间隔天数
+                # 没有找到规则，默认加 1 天
+                total_days += 1
         db_card.next_review_at = db_card.first_review_at + timedelta(days=total_days)
     else:
-        # 如果忘记了，重置复习次数和首次复习时间
         db_card.review_count = 0
         db_card.first_review_at = None
         db_card.next_review_at = now
-    
     await db.commit()
     await db.refresh(db_card)
     return db_card
