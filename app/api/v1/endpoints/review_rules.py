@@ -6,17 +6,18 @@
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Body
 
 from app.api import deps
 from app.crud import review_rule as crud_review_rule
 from app.schemas.review_rule import (
     ReviewRule,
     ReviewRuleUpdate,
-    ReviewRuleList
+    ReviewRuleList,
+    ReviewRuleUpdateListRequest
 )
 
 router = APIRouter()
-
 
 @router.get("/", response_model=ReviewRuleList)
 async def get_review_rules(
@@ -34,22 +35,20 @@ async def get_review_rules(
     )
     return ReviewRuleList(items=rules)
 
-
 @router.put("/", response_model=ReviewRuleList)
 async def update_review_rules(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    rules_in: List[ReviewRuleUpdate]
+    body: ReviewRuleUpdateListRequest = Body(...)
 ) -> ReviewRuleList:
     """
     批量更新复习规则
     """
     rules = await crud_review_rule.update_review_rules(
         db=db,
-        rules_in=rules_in
+        rules_in=body.rules
     )
     return ReviewRuleList(items=rules)
-
 
 @router.post("/reset", response_model=ReviewRuleList)
 async def reset_review_rules(

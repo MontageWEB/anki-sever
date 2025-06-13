@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import cards, review_settings
+from app.api.v1.endpoints import cards, review_rules
 
 api_router = APIRouter()
 
@@ -11,7 +11,7 @@ api_router.include_router(
 )
 
 api_router.include_router(
-    review_settings.router,
-    prefix="/review-settings",
-    tags=["review-settings"]
+    review_rules.router,
+    prefix="/review-rules",
+    tags=["复习规则"]
 ) 

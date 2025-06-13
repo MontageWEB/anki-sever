@@ -41,4 +41,8 @@ class ReviewRule(ReviewRuleBase):
 
 class ReviewRuleList(BaseModel):
     """复习规则列表的响应模型"""
-    items: List[ReviewRule] = Field(..., description="规则列表") 
+    items: List[ReviewRule] = Field(..., description="规则列表")
+
+
+class ReviewRuleUpdateListRequest(BaseModel):
+    rules: List[ReviewRuleUpdate] = Field(..., description="批量更新的规则列表") 
