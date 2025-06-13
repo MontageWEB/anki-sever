@@ -2,7 +2,7 @@
 复习设置的数据库模型
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 
 from app.models.base import Base
@@ -17,8 +17,17 @@ class ReviewSetting(Base):
     interval_days = Column(Integer, nullable=False, comment="间隔天数")
     description = Column(String(100), nullable=False, comment="设置描述")
     is_active = Column(Boolean, default=True, nullable=False, comment="是否启用")
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
 
     def __repr__(self) -> str:
         return f"ReviewSetting(id={self.id}, review_count={self.review_count}, interval_days={self.interval_days})" 

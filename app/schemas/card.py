@@ -58,8 +58,13 @@ class NextReviewUpdate(BaseModel):
     """
     next_review_at: datetime = Field(
         ...,
-        description="下次复习时间"
+        description="下次复习时间，使用 ISO 8601 格式，例如：2024-05-12T10:30:00Z"
     )
+
+    class Config:
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat()
+        }
 
 
 class ReviewUpdate(BaseModel):

@@ -17,6 +17,7 @@ class Card(Base):
     - question: 知识点/问题，最多100字
     - answer: 答案/解释，最多500字，支持富文本
     - review_count: 复习次数，从0开始
+    - first_review_at: 首次复习时间，用于计算下次复习时间
     - next_review_at: 下次复习时间
     """
     __tablename__ = "cards"
@@ -44,6 +45,13 @@ class Card(Base):
         default=0,
         nullable=False,
         comment="复习次数"
+    )
+    
+    # 首次复习时间
+    first_review_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="首次复习时间"
     )
     
     # 下次复习时间

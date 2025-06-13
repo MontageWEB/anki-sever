@@ -49,6 +49,27 @@ async def list_cards(
     )
 
 
+@router.get("/review", response_model=CardListResponse)
+async def get_cards_for_review(
+    db: AsyncSession = Depends(deps.get_db),
+    page: int = Query(1, ge=1, description="页码"),
+    per_page: int = Query(20, ge=1, le=100, description="每页数量")
+) -> CardListResponse:
+    """获取需要复习的卡片列表"""
+    skip = (page - 1) * per_page
+    cards, total = await crud_card.get_cards_to_review(
+        db=db,
+        skip=skip,
+        limit=per_page
+    )
+    return CardListResponse(
+        total=total,
+        page=page,
+        per_page=per_page,
+        items=cards
+    )
+
+
 @router.get("/{card_id}", response_model=CardResponse)
 async def get_card(
     card_id: int,
@@ -100,27 +121,6 @@ async def update_next_review(
         db=db,
         db_card=db_card,
         next_review_at=next_review.next_review_at
-    )
-
-
-@router.get("/review", response_model=CardListResponse)
-async def get_cards_for_review(
-    db: AsyncSession = Depends(deps.get_db),
-    page: Annotated[int, Query(ge=1)] = 1,
-    per_page: Annotated[int, Query(ge=1, le=100)] = 20
-) -> CardListResponse:
-    """获取需要复习的卡片列表"""
-    skip = (page - 1) * per_page
-    cards, total = await crud_card.get_cards_to_review(
-        db=db,
-        skip=skip,
-        limit=per_page
-    )
-    return CardListResponse(
-        total=total,
-        page=page,
-        per_page=per_page,
-        items=cards
     )
 
 

@@ -3,7 +3,7 @@
 实现了卡片的增删改查（CRUD）操作和复习进度管理
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, select
@@ -35,7 +35,16 @@ async def create_card(db: AsyncSession, card: CardCreate) -> Card:
 
 
 async def get_card(db: AsyncSession, card_id: int) -> Optional[Card]:
-    """获取单个卡片"""
+    """
+    获取指定ID的卡片
+    
+    参数：
+        db: 数据库会话
+        card_id: 卡片ID
+        
+    返回：
+        Card | None: 卡片对象，如果不存在则返回None
+    """
     result = await db.execute(select(Card).filter(Card.id == card_id))
     return result.scalar_one_or_none()
 
@@ -108,14 +117,28 @@ async def get_cards_to_review(
     skip: int = 0,
     limit: int = 20
 ) -> tuple[list[Card], int]:
-    """获取今日待复习的卡片"""
+    """
+    获取今日待复习的卡片
+    
+    参数:
+        db: 数据库会话
+        skip: 跳过的记录数（用于分页）
+        limit: 返回的最大记录数
+        
+    返回:
+        tuple[list[Card], int]: 卡片列表和总记录数
+    """
+    # 获取当前 UTC 时间
     now = datetime.now(timezone.utc)
     
-    # 构建查询
+    # 获取今天的开始时间（UTC）
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    
+    # 构建查询：获取今天及之前的待复习卡片
     query = (
         select(Card)
-        .filter(Card.next_review_at <= now)
-        .order_by(Card.next_review_at)
+        .filter(Card.next_review_at <= now)  # 获取今天及之前的待复习卡片
+        .order_by(Card.next_review_at)  # 按复习时间排序
     )
     
     # 获取总数
@@ -148,39 +171,59 @@ def get_cards_for_review(db: Session, limit: int = 100) -> List[Card]:
     ).limit(limit).all()
 
 
-def update_review_progress(
-    db: Session,
-    card_id: int,
+async def update_review_progress(
+    db: AsyncSession,
+    *,
+    db_card: Card,
     remembered: bool
-) -> Optional[Card]:
+) -> Card:
     """
     更新卡片的复习进度
     
     参数：
         db: 数据库会话
-        card_id: 卡片ID
+        db_card: 要更新的卡片
         remembered: 是否记住了卡片内容
         
     返回：
-        Card | None: 更新后的卡片对象，如果卡片不存在则返回None
+        Card: 更新后的卡片对象
     """
-    db_card = get_card(db, card_id)
-    if not db_card:
-        return None
+    now = datetime.now(timezone.utc)
     
     if remembered:
-        # 如果记住了，增加复习次数并计算下次复习时间
+        # 如果是第一次复习，设置首次复习时间
+        if db_card.review_count == 0:
+            db_card.first_review_at = now
+        
+        # 增加复习次数
         db_card.review_count += 1
-        db_card.next_review_at = review_strategy.calculate_next_review_time(
-            db_card.review_count
-        )
+        
+        # 计算下次复习时间
+        # 使用首次复习时间作为基准，加上累计间隔天数
+        total_days = 0
+        for i in range(1, db_card.review_count + 1):
+            # 查找当前复习次数对应的规则
+            for rule in review_strategy.rules:
+                if rule.min_count <= i <= rule.max_count:
+                    total_days += rule.days
+                    break
+            else:
+                # 如果没有找到匹配的规则，使用最后一个规则
+                if review_strategy.rules:
+                    total_days += review_strategy.rules[-1].days
+                else:
+                    total_days += 1
+        
+        # 使用首次复习时间加上累计间隔天数
+        db_card.next_review_at = db_card.first_review_at + timedelta(days=total_days)
     else:
-        # 如果忘记了，重置复习次数
+        # 如果忘记了，重置复习次数和首次复习时间
         db_card.review_count = 0
-        db_card.next_review_at = datetime.now(timezone.utc)
+        db_card.first_review_at = None
+        db_card.next_review_at = now
     
-    db.commit()
-    db.refresh(db_card)
+    await db.commit()
+    await db.refresh(db_card)
     return db_card
 
 
@@ -196,11 +239,18 @@ async def update_next_review(
     参数:
         db: 数据库会话
         db_card: 要修改的卡片
-        next_review_at: 新的下次复习时间
+        next_review_at: 新的下次复习时间（ISO 8601 格式，例如：2024-05-12T10:30:00Z）
         
     返回:
         Card: 更新后的卡片
     """
+    # 确保时区信息被保留
+    if next_review_at.tzinfo is None:
+        next_review_at = next_review_at.replace(tzinfo=timezone.utc)
+    else:
+        # 如果有时区信息，转换为 UTC
+        next_review_at = next_review_at.astimezone(timezone.utc)
+    
     db_card.next_review_at = next_review_at
     await db.commit()
     await db.refresh(db_card)

@@ -3,7 +3,7 @@
 定义不同的复习间隔计算策略
 """
 
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from pydantic import BaseModel
 
@@ -73,10 +73,10 @@ class DefaultReviewStrategy(ReviewStrategy):
         # 查找适用的规则
         for rule in self.rules:
             if rule.min_count <= review_count <= rule.max_count:
-                return datetime.now(UTC) + timedelta(days=rule.days)
+                return datetime.now(timezone.utc) + timedelta(days=rule.days)
         
         # 如果没有找到匹配的规则（不应该发生），使用默认间隔
-        return datetime.now(UTC) + timedelta(days=1)
+        return datetime.now(timezone.utc) + timedelta(days=1)
 
 
 class ConfigurableReviewStrategy(ReviewStrategy):
@@ -96,10 +96,13 @@ class ConfigurableReviewStrategy(ReviewStrategy):
                   - days: 间隔天数
         """
         self.rules = [IntervalRule(**rule) for rule in rules]
+        # 确保规则按照 min_count 排序
+        self.rules.sort(key=lambda x: x.min_count)
     
     def calculate_next_review_time(self, review_count: int) -> datetime:
         """
         根据复习次数计算下次复习时间
+        间隔是累加的，而不是每次都从当前时间开始计算
         
         参数:
             review_count: 当前复习次数
@@ -107,17 +110,23 @@ class ConfigurableReviewStrategy(ReviewStrategy):
         返回:
             datetime: 下次复习时间
         """
-        # 查找适用的规则
-        for rule in self.rules:
-            if rule.min_count <= review_count <= rule.max_count:
-                return datetime.now(UTC) + timedelta(days=rule.days)
+        # 计算从第一次复习开始的总间隔天数
+        total_days = 0
+        for i in range(1, review_count + 1):
+            # 查找当前复习次数对应的规则
+            for rule in self.rules:
+                if rule.min_count <= i <= rule.max_count:
+                    total_days += rule.days
+                    break
+            else:
+                # 如果没有找到匹配的规则，使用最后一个规则
+                if self.rules:
+                    total_days += self.rules[-1].days
+                else:
+                    total_days += 1
         
-        # 如果没有找到匹配的规则，使用最后一个规则
-        if self.rules:
-            return datetime.now(UTC) + timedelta(days=self.rules[-1].days)
-        
-        # 如果规则列表为空，使用默认间隔
-        return datetime.now(UTC) + timedelta(days=1)
+        # 返回第一次复习时间加上总间隔天数
+        return datetime.now(timezone.utc) + timedelta(days=total_days)
 
 
 # 创建默认的复习策略实例
