@@ -20,15 +20,13 @@ from app.crud import review_rule
 # 创建可配置的复习策略实例
 review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
 
+# 定义东八区时区
+CST = timezone(timedelta(hours=8))
 
 async def create_card(db: AsyncSession, card: CardCreate, user_id: int) -> Card:
     """创建新卡片"""
-    # 使用当前时间，确保有时区信息
-    now = datetime.now(timezone.utc)
-    
-    # 如果系统时间不正确（年份大于2024），使用2024年的时间
-    if now.year > 2024:
-        now = datetime(2024, now.month, now.day, now.hour, now.minute, now.second, now.microsecond, tzinfo=timezone.utc)
+    # 使用东八区时间
+    now = datetime.now(CST)
     
     db_card = Card(
         question=card.question,
@@ -150,26 +148,19 @@ async def get_cards_to_review(
     返回:
         tuple[list[Card], int]: (卡片列表, 总数)
     """
-    # 获取当前时间（UTC）
-    now = datetime.now(timezone.utc)
+    # 使用东八区时间
+    now = datetime.now(CST)
     
     # 构建查询
     query = select(Card).where(
-        # 使用 func.coalesce 处理可能为 NULL 的时区信息
-        func.coalesce(
-            func.convert_tz(Card.next_review_at, '+00:00', '+00:00'),
-            Card.next_review_at
-        ) <= now,
+        Card.next_review_at <= now,
         Card.user_id == user_id
     ).order_by(Card.next_review_at.asc())
     
     # 计算总数
     count_query = select(func.count()).select_from(
         select(Card).where(
-            func.coalesce(
-                func.convert_tz(Card.next_review_at, '+00:00', '+00:00'),
-                Card.next_review_at
-            ) <= now,
+            Card.next_review_at <= now,
             Card.user_id == user_id
         ).subquery()
     )
@@ -219,7 +210,7 @@ async def update_review_progress(
     返回：
         Card: 更新后的卡片对象
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(CST)
     
     if remembered:
         # 如果是第一次复习，设置首次复习时间
@@ -242,7 +233,6 @@ async def update_review_progress(
         db_card.next_review_at = db_card.first_review_at + timedelta(days=total_days)
     else:
         db_card.review_count = 0
-        now = datetime.now(timezone.utc)
         db_card.first_review_at = now
         db_card.next_review_at = now
     db_card.updated_at = now
@@ -263,34 +253,17 @@ async def update_next_review(
     参数:
         db: 数据库会话
         db_card: 要修改的卡片
-        next_review_at: 新的下次复习时间（ISO 8601 格式，例如：2024-05-12T10:30:00Z）
+        next_review_at: 新的下次复习时间
         
     返回:
         Card: 更新后的卡片
     """
-    print(f"\n原始时间: {next_review_at}")
-    print(f"原始时区: {next_review_at.tzinfo}")
-    
-    # 确保时区信息为 UTC，但保持原始日期和时间不变
+    # 确保使用东八区时间
     if next_review_at.tzinfo is None:
-        # 如果没有时区信息，假设是 UTC 时间
-        next_review_at = next_review_at.replace(tzinfo=timezone.utc)
-        print(f"无时区信息，设置为 UTC: {next_review_at}")
-    else:
-        # 如果有时区信息，转换为 UTC，但保持原始日期和时间
-        original_date = next_review_at.date()
-        original_time = next_review_at.time()
-        print(f"原始日期: {original_date}")
-        print(f"原始时间: {original_time}")
-        next_review_at = datetime.combine(original_date, original_time, tzinfo=timezone.utc)
-        print(f"组合后的 UTC 时间: {next_review_at}")
+        next_review_at = next_review_at.replace(tzinfo=CST)
     
     db_card.next_review_at = next_review_at
-    db_card.updated_at = datetime.now(timezone.utc)
+    db_card.updated_at = datetime.now(CST)
     await db.commit()
     await db.refresh(db_card)
-    
-    print(f"保存后的时间: {db_card.next_review_at}")
-    print(f"保存后的时区: {db_card.next_review_at.tzinfo}")
-    
     return db_card 

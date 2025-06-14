@@ -3,13 +3,14 @@
 定义所有数据模型的基类，提供通用字段和功能
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import Column, Integer, DateTime
-from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.declarative import declarative_base, declared_attr
 
+# 定义东八区时区
+CST = timezone(timedelta(hours=8))
 
-class Base(DeclarativeBase):
+class Base(declarative_base()):
     """
     基础模型类，包含所有模型共用的字段
     
@@ -42,22 +43,11 @@ class Base(DeclarativeBase):
     # 创建时间
     # default=datetime.now(UTC)：默认使用当前UTC时间
     # nullable=False：不允许为空
-    created_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False,
-        comment="创建时间"
-    )
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(CST))
     
     # 更新时间
     # onupdate=datetime.now(UTC)：记录更新时自动更新为当前时间
-    updated_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
-        comment="更新时间"
-    )
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(CST), onupdate=lambda: datetime.now(CST))
 
     @declared_attr
     def __tablename__(cls) -> str:

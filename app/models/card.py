@@ -3,11 +3,15 @@
 定义了知识卡片的数据结构和字段
 """
 
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy.orm import relationship
 
 from app.models.base import Base
+from app.models.user import User  # 添加 User 模型的导入
 
+# 定义东八区时区
+CST = timezone(timedelta(hours=8))
 
 class Card(Base):
     """
@@ -26,7 +30,7 @@ class Card(Base):
     
     # 知识点（问题）
     question = Column(
-        String(100),
+        String(1000),
         nullable=False,
         index=True,
         comment="知识点"
@@ -34,7 +38,7 @@ class Card(Base):
     
     # 答案，支持富文本
     answer = Column(
-        String(500),  # 限制500字
+        String(1000),  # 限制1000字
         nullable=False,
         comment="答案"
     )
@@ -57,7 +61,7 @@ class Card(Base):
     # 下次复习时间
     next_review_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(CST),
         nullable=False,
         index=True,
         comment="下次复习时间"
@@ -66,17 +70,20 @@ class Card(Base):
     # 时间相关字段
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(CST),
         nullable=False
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(CST),
+        onupdate=lambda: datetime.now(CST),
         nullable=False
     )
 
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True, comment="所属用户ID")
+
+    # 建立与用户的关系
+    user = relationship("User", back_populates="cards")
 
     def __repr__(self) -> str:
         return f"<Card {self.id}: {self.question[:20]}...>" 

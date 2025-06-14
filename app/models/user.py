@@ -1,15 +1,21 @@
 """
 用户表模型，支持微信一键注册/登录
 """
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy.orm import relationship
+
 from app.models.base import Base
 
 class User(Base):
+    """用户模型"""
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True, index=True)
-    openid = Column(String(64), unique=True, index=True, nullable=False, comment="微信openid")
-    nickname = Column(String(64), nullable=True, comment="微信昵称")
-    avatar = Column(String(256), nullable=True, comment="微信头像url")
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False) 
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(100), nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
+
+    # 建立与卡片的关系
+    cards = relationship("Card", back_populates="user") 

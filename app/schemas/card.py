@@ -8,7 +8,7 @@
 
 from datetime import datetime, timezone
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class CardBase(BaseModel):
@@ -58,7 +58,7 @@ class NextReviewUpdate(BaseModel):
     """
     next_review_at: datetime = Field(
         ...,
-        description="下次复习时间，使用 ISO 8601 格式，例如：2024-05-12T10:30:00Z"
+        description="下次复习时间（东八区时间）"
     )
 
     class Config:
@@ -77,31 +77,39 @@ class ReviewUpdate(BaseModel):
     )
 
 
-class CardInDB(CardBase):
+class CardInDBBase(CardBase):
     """
-    数据库中的卡片模型
+    数据库中的卡片基础模型
     包含从数据库读取的完整卡片信息
     
     Config.from_attributes = True 允许从 ORM 模型创建 Pydantic 模型
     """
-    id: int
-    review_count: int
-    next_review_at: datetime = Field(..., description="下次复习时间（ISO 8601，UTC，带Z）")
-    created_at: datetime = Field(..., description="创建时间（ISO 8601，UTC，带Z）")
-    updated_at: datetime = Field(..., description="更新时间（ISO 8601，UTC，带Z）")
+    id: int = Field(..., description="卡片ID")
+    review_count: int = Field(..., description="复习次数")
+    next_review_at: datetime = Field(..., description="下次复习时间（东八区时间）")
+    first_review_at: Optional[datetime] = Field(None, description="首次复习时间（东八区时间）")
+    created_at: datetime = Field(..., description="创建时间（东八区时间）")
+    updated_at: datetime = Field(..., description="更新时间（东八区时间）")
+    user_id: int = Field(..., description="用户ID")
 
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat() + 'Z' if dt.tzinfo else dt.replace(tzinfo=timezone.utc).isoformat() + 'Z'
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 
-class CardResponse(CardInDB):
+class CardResponse(CardInDBBase):
     """
     卡片响应模型
     用于 API 响应
     目前与 CardInDB 相同，但可以在需要时添加额外的字段或隐藏某些字段
+    """
+    pass
+
+
+class CardInDB(CardInDBBase):
+    """
+    数据库中的卡片完整模型
+    包含从数据库读取的完整卡片信息
+    
+    Config.from_attributes = True 允许从 ORM 模型创建 Pydantic 模型
     """
     pass
 
@@ -113,4 +121,4 @@ class CardListResponse(BaseModel):
     total: int
     page: int
     per_page: int
-    items: list[CardInDB] 
+    items: list[CardResponse] 
