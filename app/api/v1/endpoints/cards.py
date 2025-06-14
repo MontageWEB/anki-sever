@@ -60,12 +60,11 @@ async def get_cards_for_review(
     per_page: int = Query(20, ge=1, le=100, description="每页数量")
 ) -> CardListResponse:
     """获取需要复习的卡片列表"""
-    skip = (page - 1) * per_page
     cards, total = await crud_card.get_cards_to_review(
         db=db,
-        skip=skip,
-        limit=per_page,
-        user_id=user_id
+        user_id=user_id,
+        page=page,
+        per_page=per_page
     )
     return CardListResponse(
         total=total,

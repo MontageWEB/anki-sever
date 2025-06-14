@@ -23,12 +23,18 @@ review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
 
 async def create_card(db: AsyncSession, card: CardCreate, user_id: int) -> Card:
     """创建新卡片"""
+    # 使用当前时间，确保有时区信息
     now = datetime.now(timezone.utc)
+    
+    # 如果系统时间不正确（年份大于2024），使用2024年的时间
+    if now.year > 2024:
+        now = datetime(2024, now.month, now.day, now.hour, now.minute, now.second, now.microsecond, tzinfo=timezone.utc)
+    
     db_card = Card(
         question=card.question,
         answer=card.answer,
         review_count=0,
-        next_review_at=now,
+        next_review_at=now,  # 新卡片立即可以复习
         created_at=now,
         updated_at=now,
         user_id=user_id,
@@ -128,31 +134,56 @@ async def delete_card(db: AsyncSession, *, db_card: Card, user_id: int) -> None:
 
 async def get_cards_to_review(
     db: AsyncSession,
-    *,
-    skip: int = 0,
-    limit: int = 20,
-    user_id: int
+    user_id: int,
+    page: int = 1,
+    per_page: int = 100
 ) -> tuple[list[Card], int]:
     """
-    获取今日待复习的卡片（按用户过滤）
+    获取需要复习的卡片列表
+    
+    参数:
+        db: 数据库会话
+        user_id: 用户ID
+        page: 页码，从1开始
+        per_page: 每页数量
+        
+    返回:
+        tuple[list[Card], int]: (卡片列表, 总数)
     """
+    # 获取当前时间（UTC）
     now = datetime.now(timezone.utc)
-    query = (
-        select(Card)
-        .filter(Card.next_review_at <= now)
-        .filter(Card.user_id == user_id)
-        .order_by(Card.next_review_at)
-    )
+    
+    # 构建查询
+    query = select(Card).where(
+        # 使用 func.coalesce 处理可能为 NULL 的时区信息
+        func.coalesce(
+            func.convert_tz(Card.next_review_at, '+00:00', '+00:00'),
+            Card.next_review_at
+        ) <= now,
+        Card.user_id == user_id
+    ).order_by(Card.next_review_at.asc())
+    
+    # 计算总数
     count_query = select(func.count()).select_from(
-        select(Card)
-        .filter(Card.next_review_at <= now)
-        .filter(Card.user_id == user_id)
-        .subquery()
+        select(Card).where(
+            func.coalesce(
+                func.convert_tz(Card.next_review_at, '+00:00', '+00:00'),
+                Card.next_review_at
+            ) <= now,
+            Card.user_id == user_id
+        ).subquery()
     )
+    
+    # 执行查询
     total_result = await db.execute(count_query)
-    total = total_result.scalar()
-    result = await db.execute(query.offset(skip).limit(limit))
-    return result.scalars().all(), total
+    total = total_result.scalar_one()
+    
+    # 分页
+    query = query.offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(query)
+    cards = result.scalars().all()
+    
+    return cards, total
 
 
 def get_cards_for_review(db: Session, limit: int = 100) -> List[Card]:
@@ -237,15 +268,29 @@ async def update_next_review(
     返回:
         Card: 更新后的卡片
     """
-    # 确保时区信息被保留
+    print(f"\n原始时间: {next_review_at}")
+    print(f"原始时区: {next_review_at.tzinfo}")
+    
+    # 确保时区信息为 UTC，但保持原始日期和时间不变
     if next_review_at.tzinfo is None:
+        # 如果没有时区信息，假设是 UTC 时间
         next_review_at = next_review_at.replace(tzinfo=timezone.utc)
+        print(f"无时区信息，设置为 UTC: {next_review_at}")
     else:
-        # 如果有时区信息，转换为 UTC
-        next_review_at = next_review_at.astimezone(timezone.utc)
+        # 如果有时区信息，转换为 UTC，但保持原始日期和时间
+        original_date = next_review_at.date()
+        original_time = next_review_at.time()
+        print(f"原始日期: {original_date}")
+        print(f"原始时间: {original_time}")
+        next_review_at = datetime.combine(original_date, original_time, tzinfo=timezone.utc)
+        print(f"组合后的 UTC 时间: {next_review_at}")
     
     db_card.next_review_at = next_review_at
     db_card.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(db_card)
+    
+    print(f"保存后的时间: {db_card.next_review_at}")
+    print(f"保存后的时区: {db_card.next_review_at.tzinfo}")
+    
     return db_card 

@@ -6,7 +6,7 @@
 3. API 文档生成
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -63,7 +63,7 @@ class NextReviewUpdate(BaseModel):
 
     class Config:
         json_encoders = {
-            datetime: lambda dt: dt.isoformat()
+            datetime: lambda dt: dt.isoformat() + 'Z' if dt.tzinfo else dt.replace(tzinfo=timezone.utc).isoformat() + 'Z'
         }
 
 
@@ -86,12 +86,15 @@ class CardInDB(CardBase):
     """
     id: int
     review_count: int
-    next_review_at: datetime
-    created_at: datetime
-    updated_at: datetime
+    next_review_at: datetime = Field(..., description="下次复习时间（ISO 8601，UTC，带Z）")
+    created_at: datetime = Field(..., description="创建时间（ISO 8601，UTC，带Z）")
+    updated_at: datetime = Field(..., description="更新时间（ISO 8601，UTC，带Z）")
 
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat() + 'Z' if dt.tzinfo else dt.replace(tzinfo=timezone.utc).isoformat() + 'Z'
+        }
 
 
 class CardResponse(CardInDB):
