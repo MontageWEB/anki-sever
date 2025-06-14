@@ -32,8 +32,8 @@ class ReviewRuleUpdate(ReviewRuleBase):
 class ReviewRule(ReviewRuleBase):
     """复习规则的响应模型"""
     id: int = Field(..., description="规则ID")
-    created_at: datetime = Field(..., description="创建时间")
-    updated_at: datetime = Field(..., description="更新时间")
+    created_at: datetime = Field(..., description="创建时间（ISO 8601，UTC，带Z）")
+    updated_at: datetime = Field(..., description="更新时间（ISO 8601，UTC，带Z）")
 
     class Config:
         from_attributes = True

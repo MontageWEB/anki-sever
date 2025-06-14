@@ -23,11 +23,14 @@ review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
 
 async def create_card(db: AsyncSession, card: CardCreate) -> Card:
     """创建新卡片"""
+    now = datetime.now(timezone.utc)
     db_card = Card(
         question=card.question,
         answer=card.answer,
         review_count=0,
-        next_review_at=datetime.now(timezone.utc)
+        next_review_at=now,
+        created_at=now,
+        updated_at=now
     )
     db.add(db_card)
     await db.commit()
@@ -212,8 +215,10 @@ async def update_review_progress(
         db_card.next_review_at = db_card.first_review_at + timedelta(days=total_days)
     else:
         db_card.review_count = 0
-        db_card.first_review_at = None
+        now = datetime.now(timezone.utc)
+        db_card.first_review_at = now
         db_card.next_review_at = now
+    db_card.updated_at = now
     await db.commit()
     await db.refresh(db_card)
     return db_card
@@ -244,6 +249,7 @@ async def update_next_review(
         next_review_at = next_review_at.astimezone(timezone.utc)
     
     db_card.next_review_at = next_review_at
+    db_card.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(db_card)
     return db_card 
