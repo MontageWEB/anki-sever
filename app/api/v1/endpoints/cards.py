@@ -20,15 +20,17 @@ router = APIRouter()
 @router.post("", response_model=CardResponse)
 async def create_card(
     card_in: CardCreate,
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> CardResponse:
     """创建新的知识卡片"""
-    return await crud_card.create_card(db=db, card=card_in)
+    return await crud_card.create_card(db=db, card=card_in, user_id=user_id)
 
 
 @router.get("", response_model=CardListResponse)
 async def list_cards(
     db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id),
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 20,
     search: str | None = None
@@ -39,7 +41,8 @@ async def list_cards(
         db=db,
         skip=skip,
         limit=per_page,
-        search=search
+        search=search,
+        user_id=user_id
     )
     return CardListResponse(
         total=total,
@@ -52,6 +55,7 @@ async def list_cards(
 @router.get("/review", response_model=CardListResponse)
 async def get_cards_for_review(
     db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id),
     page: int = Query(1, ge=1, description="页码"),
     per_page: int = Query(20, ge=1, le=100, description="每页数量")
 ) -> CardListResponse:
@@ -60,7 +64,8 @@ async def get_cards_for_review(
     cards, total = await crud_card.get_cards_to_review(
         db=db,
         skip=skip,
-        limit=per_page
+        limit=per_page,
+        user_id=user_id
     )
     return CardListResponse(
         total=total,
@@ -73,10 +78,11 @@ async def get_cards_for_review(
 @router.get("/{card_id}", response_model=CardResponse)
 async def get_card(
     card_id: int,
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> CardResponse:
     """获取单个卡片的详细信息"""
-    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
     return db_card
@@ -86,35 +92,38 @@ async def get_card(
 async def update_card(
     card_id: int,
     card_in: CardUpdate,
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> CardResponse:
     """更新卡片内容"""
-    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
-    return await crud_card.update_card(db=db, db_card=db_card, card_update=card_in)
+    return await crud_card.update_card(db=db, db_card=db_card, card_update=card_in, user_id=user_id)
 
 
 @router.delete("/{card_id}", status_code=204)
 async def delete_card(
     card_id: int,
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> None:
     """删除指定卡片"""
-    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
-    await crud_card.delete_card(db=db, db_card=db_card)
+    await crud_card.delete_card(db=db, db_card=db_card, user_id=user_id)
 
 
 @router.put("/{card_id}/next-review", response_model=CardResponse)
 async def update_next_review(
     card_id: int,
     next_review: NextReviewUpdate,
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> CardResponse:
     """修改卡片的下次复习时间，不影响复习次数和复习规则"""
-    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
     return await crud_card.update_next_review(
@@ -128,10 +137,11 @@ async def update_next_review(
 async def update_review_status(
     card_id: int,
     review: ReviewUpdate,
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> CardResponse:
     """更新卡片的复习状态"""
-    db_card = await crud_card.get_card(db=db, card_id=card_id)
+    db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
     return await crud_card.update_review_progress(

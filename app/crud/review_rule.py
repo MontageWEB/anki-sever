@@ -14,6 +14,7 @@ from app.schemas.review_rule import ReviewRuleUpdate
 async def get_review_rules(
     db: AsyncSession,
     *,
+    user_id: int,
     skip: int = 0,
     limit: int = 100
 ) -> List[ReviewRule]:
@@ -22,6 +23,7 @@ async def get_review_rules(
     
     参数：
         db: 数据库会话
+        user_id: 用户ID
         skip: 跳过的记录数（用于分页）
         limit: 返回的最大记录数
         
@@ -30,6 +32,7 @@ async def get_review_rules(
     """
     result = await db.execute(
         select(ReviewRule)
+        .where(ReviewRule.user_id == user_id)
         .order_by(ReviewRule.review_count)
         .offset(skip)
         .limit(limit)
@@ -40,6 +43,7 @@ async def get_review_rules(
 async def update_review_rules(
     db: AsyncSession,
     *,
+    user_id: int,
     rules_in: List[ReviewRuleUpdate]
 ) -> List[ReviewRule]:
     """
@@ -47,6 +51,7 @@ async def update_review_rules(
     
     参数：
         db: 数据库会话
+        user_id: 用户ID
         rules_in: 复习规则更新对象列表
         
     返回：
@@ -56,7 +61,7 @@ async def update_review_rules(
     for rule_in in rules_in:
         # 查找对应的规则
         result = await db.execute(
-            select(ReviewRule).filter(ReviewRule.review_count == rule_in.review_count)
+            select(ReviewRule).filter(ReviewRule.user_id == user_id, ReviewRule.review_count == rule_in.review_count)
         )
         rule = result.scalar_one_or_none()
         if rule:
@@ -71,18 +76,19 @@ async def update_review_rules(
     return updated_rules
 
 
-async def reset_review_rules(db: AsyncSession) -> List[ReviewRule]:
+async def reset_review_rules(db: AsyncSession, user_id: int) -> List[ReviewRule]:
     """
     重置复习规则为默认值
     
     参数：
         db: 数据库会话
+        user_id: 用户ID
         
     返回：
         List[ReviewRule]: 重置后的复习规则列表
     """
     # 删除所有现有规则
-    await db.execute(delete(ReviewRule))
+    await db.execute(delete(ReviewRule).where(ReviewRule.user_id == user_id))
     
     # 插入默认规则
     default_rules = [
@@ -96,7 +102,8 @@ async def reset_review_rules(db: AsyncSession) -> List[ReviewRule]:
     for review_count, interval_days in default_rules:
         rule = ReviewRule(
             review_count=review_count,
-            interval_days=interval_days
+            interval_days=interval_days,
+            user_id=user_id
         )
         db.add(rule)
         rules.append(rule)

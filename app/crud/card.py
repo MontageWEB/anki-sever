@@ -21,7 +21,7 @@ from app.crud import review_rule
 review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
 
 
-async def create_card(db: AsyncSession, card: CardCreate) -> Card:
+async def create_card(db: AsyncSession, card: CardCreate, user_id: int) -> Card:
     """创建新卡片"""
     now = datetime.now(timezone.utc)
     db_card = Card(
@@ -30,7 +30,8 @@ async def create_card(db: AsyncSession, card: CardCreate) -> Card:
         review_count=0,
         next_review_at=now,
         created_at=now,
-        updated_at=now
+        updated_at=now,
+        user_id=user_id,
     )
     db.add(db_card)
     await db.commit()
@@ -38,18 +39,19 @@ async def create_card(db: AsyncSession, card: CardCreate) -> Card:
     return db_card
 
 
-async def get_card(db: AsyncSession, card_id: int) -> Optional[Card]:
+async def get_card(db: AsyncSession, card_id: int, user_id: int) -> Optional[Card]:
     """
     获取指定ID的卡片
     
     参数：
         db: 数据库会话
         card_id: 卡片ID
+        user_id: 用户ID
         
     返回：
         Card | None: 卡片对象，如果不存在则返回None
     """
-    result = await db.execute(select(Card).filter(Card.id == card_id))
+    result = await db.execute(select(Card).filter(Card.id == card_id, Card.user_id == user_id))
     return result.scalar_one_or_none()
 
 
@@ -58,7 +60,8 @@ async def get_cards(
     *,
     skip: int = 0,
     limit: int = 20,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    user_id: int
 ) -> tuple[list[Card], int]:
     """
     获取卡片列表
@@ -68,13 +71,14 @@ async def get_cards(
         skip: 跳过的记录数（用于分页）
         limit: 返回的最大记录数
         search: 搜索关键词（可选）
+        user_id: 用户ID
         
     返回:
         tuple[list[Card], int]: 卡片列表和总记录数
     """
     # 构建基础查询，添加按创建时间倒序排序
-    query: Select = select(Card).order_by(Card.created_at.desc())
-    count_query: Select = select(Card)
+    query: Select = select(Card).filter(Card.user_id == user_id).order_by(Card.created_at.desc())
+    count_query: Select = select(Card).filter(Card.user_id == user_id)
 
     # 如果有搜索关键词，添加搜索条件
     if search:
@@ -98,9 +102,13 @@ async def update_card(
     db: AsyncSession,
     *,
     db_card: Card,
-    card_update: CardUpdate
+    card_update: CardUpdate,
+    user_id: int
 ) -> Card:
     """更新卡片"""
+    # 只允许更新属于当前用户的卡片
+    if db_card.user_id != user_id:
+        raise Exception('无权限操作他人卡片')
     for field, value in card_update.model_dump(exclude_unset=True).items():
         setattr(db_card, field, value)
     
@@ -109,8 +117,11 @@ async def update_card(
     return db_card
 
 
-async def delete_card(db: AsyncSession, *, db_card: Card) -> None:
+async def delete_card(db: AsyncSession, *, db_card: Card, user_id: int) -> None:
     """删除卡片"""
+    # 只允许删除属于当前用户的卡片
+    if db_card.user_id != user_id:
+        raise Exception('无权限操作他人卡片')
     await db.delete(db_card)
     await db.commit()
 
@@ -119,42 +130,27 @@ async def get_cards_to_review(
     db: AsyncSession,
     *,
     skip: int = 0,
-    limit: int = 20
+    limit: int = 20,
+    user_id: int
 ) -> tuple[list[Card], int]:
     """
-    获取今日待复习的卡片
-    
-    参数:
-        db: 数据库会话
-        skip: 跳过的记录数（用于分页）
-        limit: 返回的最大记录数
-        
-    返回:
-        tuple[list[Card], int]: 卡片列表和总记录数
+    获取今日待复习的卡片（按用户过滤）
     """
-    # 获取当前 UTC 时间
     now = datetime.now(timezone.utc)
-    
-    # 获取今天的开始时间（UTC）
-    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-    
-    # 构建查询：获取今天及之前的待复习卡片
     query = (
         select(Card)
-        .filter(Card.next_review_at <= now)  # 获取今天及之前的待复习卡片
-        .order_by(Card.next_review_at)  # 按复习时间排序
+        .filter(Card.next_review_at <= now)
+        .filter(Card.user_id == user_id)
+        .order_by(Card.next_review_at)
     )
-    
-    # 获取总数
     count_query = select(func.count()).select_from(
         select(Card)
         .filter(Card.next_review_at <= now)
+        .filter(Card.user_id == user_id)
         .subquery()
     )
     total_result = await db.execute(count_query)
     total = total_result.scalar()
-    
-    # 获取分页数据
     result = await db.execute(query.offset(skip).limit(limit))
     return result.scalars().all(), total
 

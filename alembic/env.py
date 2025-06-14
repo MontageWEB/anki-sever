@@ -13,6 +13,9 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # 导入所有模型以便 Alembic 可以检测到
 from app.models.card import Card
+from app.models.user import User
+from app.models.review_rule import ReviewRule
+from app.models.review_settings import ReviewSetting
 from app.models.base import Base
 
 # this is the Alembic Config object, which provides

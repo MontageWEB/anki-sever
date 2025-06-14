@@ -4,7 +4,7 @@
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, DateTime, Text
+from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey
 
 from app.models.base import Base
 
@@ -75,6 +75,8 @@ class Card(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False
     )
+
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True, comment="所属用户ID")
 
     def __repr__(self) -> str:
         return f"<Card {self.id}: {self.question[:20]}...>" 

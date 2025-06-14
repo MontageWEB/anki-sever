@@ -14,7 +14,33 @@
 }
 ```
 
+## 认证与多用户说明
+- 除认证接口外，所有卡片和复习规则相关接口均需在请求头携带 `Authorization: Bearer <token>`
+- 所有数据均归属于当前登录用户，接口操作仅影响自己的数据，互不干扰
+
 ## 接口列表
+
+
+### 0. 用户认证
+
+#### 0.1 微信一键登录
+- 路径: POST `/auth/wx-login`
+- 请求体:
+```json
+{
+  "code": "微信登录临时凭证",
+  "nickname": "微信昵称",
+  "avatar": "微信头像url"
+}
+```
+- 响应体:
+```json
+{
+  "access_token": "jwt-token",
+  "token_type": "bearer"
+}
+```
+- 说明: 前端传 code，后端换取 openid 并返回 token
 
 ### 1. 知识卡片管理
 

@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"                   # JWT 算法
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60      # Token 过期时间（分钟）
 
+    # 微信小程序配置
+    WECHAT_APPID: str = "your-appid"
+    WECHAT_SECRET: str = "your-secret"
+
     class Config:
         """
         配置类的配置

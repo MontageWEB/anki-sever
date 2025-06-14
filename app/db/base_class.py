@@ -1,6 +1,6 @@
 """
 SQLAlchemy 基础模型类
-所有数据库模型都应该继承这个类
+所有数据库模型都应该继承 app.models.base.Base，不建议再用本文件。
 """
 
 from typing import Any

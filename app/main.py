@@ -12,17 +12,23 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.api import api_router
 from app.core.config import settings
-from app.db.session import engine
-from app.models.base import Base
+from app.db.init_db import init_db
 
 # 创建 FastAPI 应用实例
 # title: API 文档的标题
 # description: API 文档的描述
 # version: API 版本
 app = FastAPI(
-    title="Anki API",
-    description="Anki 复习助手 API",
+    title=settings.PROJECT_NAME,
+    description="""
+**开发/测试环境说明：**
+
+1. 认证接口 `/auth/wx-login` 支持 `code: test-code`，可获取测试账号 token。
+2. 在右上角 Authorize 按钮中填入 `Bearer <token>`，即可测试所有需要认证的接口。
+3. 生产环境请使用真实微信授权流程。
+""",
     version="1.0.0",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
 # 配置 CORS (跨源资源共享)
@@ -38,7 +44,7 @@ app.add_middleware(
 # 注册路由
 # prefix: API 路由前缀，所有卡片相关的接口都会加上这个前缀
 # tags: 用于 API 文档的分类标签
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # 健康检查接口
 # 用于监控系统确认 API 服务是否正常运行
@@ -49,5 +55,5 @@ async def health_check():
 # 启动时初始化数据库
 @app.on_event("startup")
 async def startup_event():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all) 
+    """应用启动时初始化数据库"""
+    await init_db() 

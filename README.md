@@ -66,10 +66,41 @@ mysql -u root -e "CREATE DATABASE anki CHARACTER SET utf8mb4 COLLATE utf8mb4_uni
 5. 初始化数据库
 ```bash
 alembic upgrade head
+sudo mysql.server start  # 启动 MySQL
 ```
 
 6. 启动服务
 ```bash
+source venv/bin/activate  # 重新激活虚拟环境
+uvicorn app.main:app --reload --port 8001  # 启动服务
+```
+
+
+## 快速启动
+1. 一键启动（推荐）
+```bash
+# 给启动脚本添加执行权限
+chmod +x scripts/start.sh
+
+# 运行启动脚本
+./scripts/start.sh
+```
+
+2. 或者手动启动：
+```bash
+# 启动 MySQL
+sudo mysql.server start
+
+# 创建数据库
+mysql -u root -e "CREATE DATABASE anki CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 激活虚拟环境
+source venv/bin/activate
+
+# 执行数据库迁移
+alembic upgrade head
+
+# 启动服务
 uvicorn app.main:app --reload --port 8001
 ```
 

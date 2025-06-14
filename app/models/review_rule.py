@@ -3,10 +3,10 @@
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime
+from sqlalchemy import Column, Integer, DateTime, ForeignKey
 from sqlalchemy.sql import func
 
-from app.db.base_class import Base
+from app.models.base import Base
 
 
 class ReviewRule(Base):
@@ -17,4 +17,5 @@ class ReviewRule(Base):
     review_count = Column(Integer, nullable=False, unique=True, index=True)
     interval_days = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False) 
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True, comment="所属用户ID") 

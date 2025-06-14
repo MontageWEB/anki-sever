@@ -22,6 +22,7 @@ router = APIRouter()
 @router.get("/", response_model=ReviewRuleList)
 async def get_review_rules(
     db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id),
     skip: int = 0,
     limit: int = 100
 ) -> ReviewRuleList:
@@ -30,6 +31,7 @@ async def get_review_rules(
     """
     rules = await crud_review_rule.get_review_rules(
         db=db,
+        user_id=user_id,
         skip=skip,
         limit=limit
     )
@@ -39,6 +41,7 @@ async def get_review_rules(
 async def update_review_rules(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id),
     body: ReviewRuleUpdateListRequest = Body(...)
 ) -> ReviewRuleList:
     """
@@ -46,16 +49,18 @@ async def update_review_rules(
     """
     rules = await crud_review_rule.update_review_rules(
         db=db,
+        user_id=user_id,
         rules_in=body.rules
     )
     return ReviewRuleList(items=rules)
 
 @router.post("/reset", response_model=ReviewRuleList)
 async def reset_review_rules(
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> ReviewRuleList:
     """
     重置复习规则为默认值
     """
-    rules = await crud_review_rule.reset_review_rules(db=db)
+    rules = await crud_review_rule.reset_review_rules(db=db, user_id=user_id)
     return ReviewRuleList(items=rules) 
