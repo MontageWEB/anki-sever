@@ -30,7 +30,7 @@ class Card(Base):
     
     # 知识点（问题）
     question = Column(
-        String(1000),
+        String(255),
         nullable=False,
         index=True,
         comment="知识点"

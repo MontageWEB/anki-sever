@@ -16,6 +16,7 @@ class User(Base):
     hashed_password = Column(String(100), nullable=False)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    openid = Column(String(64), unique=True, index=True)
 
     # 建立与卡片的关系
     cards = relationship("Card", back_populates="user") 
