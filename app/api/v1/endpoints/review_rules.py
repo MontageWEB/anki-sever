@@ -19,7 +19,7 @@ from app.schemas.review_rule import (
 
 router = APIRouter()
 
-@router.get("/", response_model=ReviewRuleList)
+@router.get("", response_model=ReviewRuleList)
 async def get_review_rules(
     db: AsyncSession = Depends(deps.get_db),
     user_id: int = Depends(deps.get_current_user_id),
@@ -37,7 +37,7 @@ async def get_review_rules(
     )
     return ReviewRuleList(items=rules)
 
-@router.put("/", response_model=ReviewRuleList)
+@router.put("", response_model=ReviewRuleList)
 async def update_review_rules(
     *,
     db: AsyncSession = Depends(deps.get_db),
