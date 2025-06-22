@@ -8,6 +8,10 @@ async def get_user_by_openid(db: AsyncSession, openid: str) -> User | None:
     result = await db.execute(select(User).where(User.openid == openid))
     return result.scalar_one_or_none()
 
+async def get_user(db: AsyncSession, user_id: int) -> User | None:
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
+
 async def create_user(db: AsyncSession, user_in: UserCreate) -> User:
     user = User(
         openid=user_in.openid,

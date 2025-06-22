@@ -1,10 +1,14 @@
 """
 用户表模型，支持微信一键注册/登录
 """
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime, timezone, timedelta
 
 from app.models.base import Base
+
+# 定义东八区时区
+CST = timezone(timedelta(hours=8))
 
 class User(Base):
     """用户模型"""
@@ -15,6 +19,10 @@ class User(Base):
     nickname = Column(String(100), default="")
     avatar = Column(String(500), default="")
     is_active = Column(Boolean, default=True)
+    
+    # 时间字段
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(CST))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(CST), onupdate=lambda: datetime.now(CST))
 
     # 建立与卡片的关系
     cards = relationship("Card", back_populates="user") 
