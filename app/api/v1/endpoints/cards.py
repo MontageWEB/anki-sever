@@ -11,7 +11,8 @@ from app.schemas.card import (
     CardResponse,
     CardListResponse,
     NextReviewUpdate,
-    ReviewUpdate
+    ReviewUpdate,
+    SuccessResponse
 )
 
 router = APIRouter()
@@ -101,17 +102,18 @@ async def update_card(
     return await crud_card.update_card(db=db, db_card=db_card, card_update=card_in, user_id=user_id)
 
 
-@router.delete("/{card_id}", status_code=204)
+@router.delete("/{card_id}", status_code=200)
 async def delete_card(
     card_id: int,
     db: AsyncSession = Depends(deps.get_db),
     user_id: int = Depends(deps.get_current_user_id)
-) -> None:
+) -> SuccessResponse:
     """删除指定卡片"""
     db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
     await crud_card.delete_card(db=db, db_card=db_card, user_id=user_id)
+    return SuccessResponse(message="Card deleted successfully")
 
 
 @router.put("/{card_id}/next-review", response_model=CardResponse)

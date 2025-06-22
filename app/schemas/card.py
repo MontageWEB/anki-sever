@@ -121,4 +121,13 @@ class CardListResponse(BaseModel):
     total: int
     page: int
     per_page: int
-    items: list[CardResponse] 
+    items: list[CardResponse]
+
+
+class SuccessResponse(BaseModel):
+    """
+    统一成功响应模型
+    """
+    success: bool = True
+    message: str
+    data: dict | None = None 
