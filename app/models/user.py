@@ -11,12 +11,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    email = Column(String(100), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(100), nullable=False)
+    openid = Column(String(64), unique=True, index=True, nullable=False)
+    nickname = Column(String(100), default="")
+    avatar = Column(String(500), default="")
     is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
-    openid = Column(String(64), unique=True, index=True)
 
     # 建立与卡片的关系
     cards = relationship("Card", back_populates="user") 

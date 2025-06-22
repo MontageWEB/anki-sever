@@ -15,6 +15,10 @@ class WxLoginRequest(BaseModel):
     nickname: str = Field(None, description="微信昵称")
     avatar: str = Field(None, description="微信头像url")
 
+class H5LoginRequest(BaseModel):
+    nickname: str = Field("H5用户", description="用户昵称")
+    avatar: str = Field("", description="用户头像url")
+
 @router.post("/wx-login", response_model=Token)
 async def wx_login(
     req: WxLoginRequest,
@@ -41,6 +45,27 @@ async def wx_login(
     if not user:
         user = await crud_user.create_user(db, user_in=crud_user.UserCreate(
             openid=openid,
+            nickname=req.nickname,
+            avatar=req.avatar
+        ))
+    token = security.create_access_token(str(user.id))
+    return Token(access_token=token, token_type="bearer")
+
+@router.post("/h5-login", response_model=Token)
+async def h5_login(
+    req: H5LoginRequest,
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """
+    H5环境专用登录接口
+    不需要微信 code，直接创建或获取 H5 测试用户
+    """
+    # 使用固定的 H5 用户 openid
+    h5_openid = "h5-test-openid"
+    user = await crud_user.get_user_by_openid(db, h5_openid)
+    if not user:
+        user = await crud_user.create_user(db, user_in=crud_user.UserCreate(
+            openid=h5_openid,
             nickname=req.nickname,
             avatar=req.avatar
         ))

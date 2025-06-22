@@ -23,9 +23,10 @@ app = FastAPI(
     description="""
 **开发/测试环境说明：**
 
-1. 认证接口 `/auth/wx-login` 支持 `code: test-code`，可获取测试账号 token。
-2. 在右上角 Authorize 按钮中填入 `Bearer <token>`，即可测试所有需要认证的接口。
-3. 生产环境请使用真实微信授权流程。
+1. 微信小程序登录接口 `/auth/wx-login` 支持 `code: test-code`，可获取测试账号 token。
+2. H5环境登录接口 `/auth/h5-login` 不需要微信 code，直接获取 H5 测试用户 token。
+3. 在右上角 Authorize 按钮中填入 `Bearer <token>`，即可测试所有需要认证的接口。
+4. 生产环境请使用真实微信授权流程。
 """,
     version="1.0.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
