@@ -58,13 +58,16 @@ class Settings(BaseSettings):
         return f"mysql+aiomysql://{values.get('MYSQL_USER')}:{values.get('MYSQL_PASSWORD')}@{values.get('MYSQL_HOST')}:{values.get('MYSQL_PORT')}/{values.get('MYSQL_DB')}"
 
     # JWT 配置（预留，目前未使用）
-    SECRET_KEY: str = "your-secret-key-here"  # JWT 密钥
+    SECRET_KEY: str = "dev-secret"  # 密钥，线上需更换
     ALGORITHM: str = "HS256"                   # JWT 算法
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60      # Token 过期时间（分钟）
 
     # 微信小程序配置
     WECHAT_APPID: str = "your-appid"
     WECHAT_SECRET: str = "your-secret"
+
+    DEBUG: bool = True  # 调试模式，默认本地为 True，线上建议为 False
+    CORS_ORIGINS: str = "http://localhost:3000"  # CORS 白名单，多个用逗号分隔
 
     class Config:
         """

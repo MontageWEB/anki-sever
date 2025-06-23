@@ -27,4 +27,4 @@ alembic upgrade head
 
 # 启动后端服务
 echo "正在启动后端服务..."
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
