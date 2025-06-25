@@ -8,15 +8,21 @@ FastAPI 应用的主入口文件
 5. 提供静态文件服务（H5前端）
 """
 
-from fastapi import FastAPI
+import logging
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import os
 
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.db.init_db import init_db
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 创建 FastAPI 应用实例
 # title: API 文档的标题
@@ -45,6 +51,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 全局异常处理器
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器，记录详细错误信息"""
+    logger.error(f"全局异常: {exc}")
+    logger.error(f"请求路径: {request.url}")
+    logger.error(f"请求方法: {request.method}")
+    logger.error(f"异常详情: {traceback.format_exc()}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error": str(exc),
+            "path": str(request.url)
+        }
+    )
 
 # 注册路由
 # prefix: API 路由前缀，所有卡片相关的接口都会加上这个前缀

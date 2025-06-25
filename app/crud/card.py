@@ -12,10 +12,10 @@ from sqlalchemy.sql import Select
 from sqlalchemy import func
 
 from app.models.card import Card
+from app.models.review_rule import ReviewRule
 from app.schemas.card import CardCreate, CardUpdate
 from app.core.config import settings
 from app.core.review_strategy import ConfigurableReviewStrategy
-from app.crud import review_rule
 
 # 创建可配置的复习策略实例
 review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
@@ -222,7 +222,10 @@ async def update_review_progress(
         total_days = 0
         for i in range(1, db_card.review_count + 1):
             result = await db.execute(
-                select(review_rule.ReviewRule.interval_days).where(review_rule.ReviewRule.review_count == i)
+                select(ReviewRule.interval_days).where(
+                    ReviewRule.review_count == i,
+                    ReviewRule.user_id == db_card.user_id
+                )
             )
             interval_days = result.scalar_one_or_none()
             if interval_days is not None:
