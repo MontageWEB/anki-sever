@@ -5,10 +5,14 @@ FastAPI 应用的主入口文件
 2. 配置中间件（如 CORS）
 3. 注册路由
 4. 提供健康检查接口
+5. 提供静态文件服务（H5前端）
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 from app.api.v1.api import api_router
 from app.core.config import settings
@@ -46,6 +50,21 @@ app.add_middleware(
 # prefix: API 路由前缀，所有卡片相关的接口都会加上这个前缀
 # tags: 用于 API 文档的分类标签
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# 配置静态文件服务（H5前端）
+# 检查静态文件目录是否存在
+static_dir = "static"
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# H5 首页路由
+@app.get("/")
+async def h5_index():
+    """H5 应用首页"""
+    index_file = "static/index.html"
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"message": "H5 前端文件未找到，请确保 static/index.html 文件存在"}
 
 # 健康检查接口
 # 用于监控系统确认 API 服务是否正常运行

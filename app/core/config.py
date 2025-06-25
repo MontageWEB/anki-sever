@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     MYSQL_DB: str = "anki"
     SQLALCHEMY_DATABASE_URI: Optional[str] = None  # 改为 str 类型
 
+
     # 复习策略配置
     # 可以通过环境变量 REVIEW_STRATEGY_RULES 覆盖
     REVIEW_STRATEGY_RULES: List[Dict[str, int]] = [
@@ -63,8 +64,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60      # Token 过期时间（分钟）
 
     # 微信小程序配置
-    WECHAT_APPID: str = "your-appid"
-    WECHAT_SECRET: str = "your-secret"
+    WECHAT_APPID: str = "wxf9ee550b89522c3f"
+    WECHAT_SECRET: str = "a49d196dc641d6a620813fb7c573b542"
 
     DEBUG: bool = True  # 调试模式，默认本地为 True，线上建议为 False
     CORS_ORIGINS: str = "http://localhost:3000"  # CORS 白名单，多个用逗号分隔
