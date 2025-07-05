@@ -44,9 +44,18 @@ app = FastAPI(
 
 # 配置 CORS (跨源资源共享)
 # 这允许前端应用从不同的域名访问我们的 API
+origins = [
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://127.0.0.1:59371",  # 你本地开发工具的端口
+    "https://montage.vip",     # 你的正式域名
+    # 还可以加其它需要允许的来源
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    # allow_origins=origins,
+    allow_origins=["*"],  # 仅开发环境用
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

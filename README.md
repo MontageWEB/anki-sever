@@ -107,6 +107,7 @@ uvicorn app.main:app --reload --port 8001
 启动服务后，访问以下地址：
 
 - API 接口文档（Swagger UI）: http://localhost:8001/docs
+- API 接口文档（Swagger UI）线上: https://montage.vip/docs
 - API 替代文档（ReDoc）: http://localhost:8001/redoc
 - API 基础路径: http://localhost:8001/api/v1
 
