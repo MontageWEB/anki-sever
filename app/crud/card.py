@@ -269,4 +269,120 @@ async def update_next_review(
     db_card.updated_at = datetime.now(CST)
     await db.commit()
     await db.refresh(db_card)
-    return db_card 
+    return db_card
+
+
+async def get_card_by_question_answer(
+    db: AsyncSession,
+    user_id: int,
+    question: str,
+    answer: str
+) -> Optional[Card]:
+    """
+    根据问题和答案获取卡片
+    
+    参数:
+        db: 数据库会话
+        user_id: 用户ID
+        question: 问题
+        answer: 答案
+        
+    返回:
+        Card | None: 卡片对象，如果不存在则返回None
+    """
+    result = await db.execute(
+        select(Card).filter(
+            Card.user_id == user_id,
+            Card.question == question,
+            Card.answer == answer
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_card_by_question_answer(
+    db: AsyncSession,
+    user_id: int,
+    question: str,
+    answer: str,
+    new_data
+) -> Card:
+    """
+    根据问题和答案更新卡片
+    
+    参数:
+        db: 数据库会话
+        user_id: 用户ID
+        question: 问题
+        answer: 答案
+        new_data: 新的卡片数据
+        
+    返回:
+        Card: 更新后的卡片
+    """
+    card = await get_card_by_question_answer(db, user_id, question, answer)
+    if not card:
+        raise Exception("卡片不存在")
+    
+    # 更新字段
+    card.question = new_data.question
+    card.answer = new_data.answer
+    card.review_count = new_data.review_count
+    card.next_review_at = new_data.next_review_at
+    card.updated_at = datetime.now(CST)
+    
+    await db.commit()
+    await db.refresh(card)
+    return card
+
+
+async def batch_create_cards_from_csv(
+    db: AsyncSession,
+    cards_data: List,
+    user_id: int
+) -> dict:
+    """
+    从CSV数据批量创建卡片
+    
+    参数:
+        db: 数据库会话
+        cards_data: CSV数据列表
+        user_id: 用户ID
+        
+    返回:
+        dict: 包含成功和失败统计的字典
+    """
+    success_count = 0
+    failed_count = 0
+    now = datetime.now(CST)
+    
+    for card_data in cards_data:
+        try:
+            # 创建卡片
+            db_card = Card(
+                question=card_data.question,
+                answer=card_data.answer,
+                review_count=card_data.review_count,
+                next_review_at=card_data.next_review_at,
+                created_at=card_data.created_at,
+                updated_at=now,
+                user_id=user_id,
+            )
+            db.add(db_card)
+            success_count += 1
+            
+        except Exception as e:
+            failed_count += 1
+            print(f"创建卡片失败: {str(e)}")
+    
+    # 提交事务
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"批量导入事务失败: {str(e)}")
+    
+    return {
+        "success": success_count,
+        "failed": failed_count
+    } 

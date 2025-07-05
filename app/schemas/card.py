@@ -6,7 +6,7 @@
 3. API 文档生成
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -60,11 +60,6 @@ class NextReviewUpdate(BaseModel):
         ...,
         description="下次复习时间（东八区时间）"
     )
-
-    class Config:
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat() + 'Z' if dt.tzinfo else dt.replace(tzinfo=timezone.utc).isoformat() + 'Z'
-        }
 
 
 class ReviewUpdate(BaseModel):
