@@ -391,8 +391,8 @@ async def import_csv_data(
     4. 返回导入结果
     """
     # 验证重复处理策略
-    if duplicate_strategy not in ["skip", "overwrite", "create_copy"]:
-        raise HTTPException(status_code=400, detail="无效的重复处理策略")
+    if duplicate_strategy not in ["skip", "overwrite"]:
+        raise HTTPException(status_code=400, detail="无效的重复处理策略，只支持跳过重复和覆盖重复")
     
     # 检查文件格式
     if not file.filename.lower().endswith('.csv'):
@@ -421,7 +421,7 @@ async def import_csv_data(
         to_import = non_duplicates.copy()
         skip_count = 0
         overwrite_count = 0
-        
+
         if duplicate_strategy == "skip":
             skip_count = len(duplicates)
         elif duplicate_strategy == "overwrite":
@@ -431,23 +431,8 @@ async def import_csv_data(
                     db, user_id, duplicate.question, duplicate.answer, duplicate
                 )
             overwrite_count = len(duplicates)
-        elif duplicate_strategy == "create_copy":
-            # 为重复数据创建副本
-            for duplicate in duplicates:
-                # 添加序号后缀
-                counter = 1
-                original_question = duplicate.question
-                while True:
-                    new_question = f"{original_question} ({counter})"
-                    existing = await crud_card.get_card_by_question_answer(
-                        db, user_id, new_question, duplicate.answer
-                    )
-                    if not existing:
-                        duplicate.question = new_question
-                        to_import.append(duplicate)
-                        break
-                    counter += 1
-        
+        # 不再支持 create_copy
+
         # 批量导入数据
         import_result = await crud_card.batch_create_cards_from_csv(
             db, to_import, user_id
