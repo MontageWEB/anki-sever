@@ -86,21 +86,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # 配置静态文件服务（H5前端）
-# 检查静态文件目录是否存在
-static_dir = "static"
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-    # 添加 /assets/ 路径映射到 static/assets/ 目录
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+# 直接使用 h5 目录
+if os.path.exists("h5"):
+    app.mount("/static", StaticFiles(directory="h5"), name="h5")
 
 # H5 首页路由
 @app.get("/")
 async def h5_index():
     """H5 应用首页"""
-    index_file = "static/index.html"
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    return {"message": "H5 前端文件未找到，请确保 static/index.html 文件存在"}
+    if os.path.exists("h5/index.html"):
+        return FileResponse("h5/index.html")
+    return {"message": "H5 前端文件未找到，请确保 h5/index.html 文件存在"}
 
 # 健康检查接口
 # 用于监控系统确认 API 服务是否正常运行
