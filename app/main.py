@@ -90,6 +90,8 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 static_dir = "static"
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    # 添加 /assets/ 路径映射到 static/assets/ 目录
+    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
 
 # H5 首页路由
 @app.get("/")
