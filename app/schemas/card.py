@@ -87,7 +87,12 @@ class CardInDBBase(CardBase):
     updated_at: datetime = Field(..., description="更新时间（东八区时间）")
     user_id: int = Field(..., description="用户ID")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    )
 
 
 class CardResponse(CardInDBBase):

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 import os
+from fastapi.openapi.utils import get_openapi
 
 from app.api.v1.api import api_router
 from app.core.config import settings
@@ -110,3 +111,34 @@ async def health_check():
 async def startup_event():
     """应用启动时初始化数据库"""
     await init_db() 
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=settings.PROJECT_NAME,
+        version="1.0.0",
+        description="""
+**开发/测试环境说明：**
+
+1. 微信小程序登录接口 `/auth/wx-login` 支持 `code: test-code`，可获取测试账号 token。
+2. H5环境登录接口 `/auth/h5-login` 不需要微信 code，直接获取 H5 测试用户 token。
+3. 在右上角 Authorize 按钮中填入 `Bearer <token>`，即可测试所有需要认证的接口。
+4. 生产环境请使用真实微信授权流程。
+""",
+        routes=app.routes,
+    )
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "在下方输入框粘贴你的JWT Token即可，格式无需加Bearer前缀"
+        }
+    }
+    # 全局应用BearerAuth
+    openapi_schema["security"] = [{"BearerAuth": []}]
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi 

@@ -85,6 +85,10 @@ async def get_card(
     db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
+    
+    # 验证并修复数据一致性问题
+    await crud_card.validate_and_fix_card_data(db=db, card=db_card)
+    
     return db_card
 
 
@@ -142,11 +146,23 @@ async def update_review_status(
     user_id: int = Depends(deps.get_current_user_id)
 ) -> CardResponse:
     """更新卡片的复习状态"""
-    db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
-    if db_card is None:
-        raise HTTPException(status_code=404, detail="Card not found")
-    return await crud_card.update_review_progress(
-        db=db,
-        db_card=db_card,
-        remembered=review.remembered
-    ) 
+    try:
+        db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
+        if db_card is None:
+            raise HTTPException(status_code=404, detail="Card not found")
+        
+        # 在复习前验证并修复数据一致性问题
+        await crud_card.validate_and_fix_card_data(db=db, card=db_card)
+        
+        return await crud_card.update_review_progress(
+            db=db,
+            db_card=db_card,
+            remembered=review.remembered
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # 记录详细错误信息
+        print(f"Error in update_review_status: {str(e)}")
+        print(f"Card ID: {card_id}, User ID: {user_id}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 

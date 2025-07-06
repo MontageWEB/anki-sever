@@ -34,7 +34,7 @@ def parse_datetime(date_str: str) -> datetime:
         date_str: 日期时间字符串，格式：YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss
         
     Returns:
-        datetime: 解析后的日期时间对象
+        datetime: 解析后的日期时间对象（带东八区时区信息）
         
     Raises:
         ValueError: 格式错误时抛出异常
@@ -42,12 +42,17 @@ def parse_datetime(date_str: str) -> datetime:
     try:
         # 优先尝试完整时间
         dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
-        return dt.replace(tzinfo=CST)
+        # 确保有时区信息
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=CST)
+        return dt
     except ValueError:
         try:
             # 尝试仅日期，自动补全为00:00:00
             dt = datetime.strptime(date_str.strip(), "%Y-%m-%d")
-            return dt.replace(hour=0, minute=0, second=0, tzinfo=CST)
+            # 确保有时区信息
+            dt = dt.replace(hour=0, minute=0, second=0, tzinfo=CST)
+            return dt
         except ValueError:
             raise ValueError(f"时间格式错误，应为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss，实际为: {date_str}")
 
@@ -256,9 +261,10 @@ def validate_csv_data(rows: List[Dict[str, Any]]) -> tuple[List[CSVRowData], Lis
             valid_data.append(CSVRowData(
                 question=row["question"],
                 answer=row["answer"],
-                created_at=row.get("created_at") or now,
+                created_at=row.get("created_at"),  # 允许None，在创建时使用默认值
                 review_count=review_count,
-                next_review_at=row.get("next_review_at") or now
+                next_review_at=row.get("next_review_at"),  # 允许None，在创建时使用默认值
+                first_review_at=row.get("first_review_at")  # 允许None，保持NULL
             ))
             
         except Exception as e:

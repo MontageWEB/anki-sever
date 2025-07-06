@@ -214,7 +214,10 @@ async def update_review_progress(
     
     if remembered:
         # 如果是第一次复习，设置首次复习时间
-        if db_card.review_count == 0:
+        if db_card.review_count == 0 or db_card.first_review_at is None:
+            # 确保设置的时间有时区信息
+            if now.tzinfo is None:
+                now = now.replace(tzinfo=CST)
             db_card.first_review_at = now
         # 增加复习次数
         db_card.review_count += 1
@@ -233,10 +236,32 @@ async def update_review_progress(
             else:
                 # 没有找到规则，默认加 1 天
                 total_days += 1
-        db_card.next_review_at = db_card.first_review_at + timedelta(days=total_days)
+        
+        # 优先使用 next_review_at 作为基准时间，如果不存在则使用 first_review_at
+        base_time = db_card.next_review_at if db_card.next_review_at else db_card.first_review_at
+        if base_time is None:
+            # 如果 first_review_at 也不存在，使用创建时间
+            base_time = db_card.created_at if db_card.created_at else now
+        
+        # 最终安全检查，确保 base_time 不为 None
+        if base_time is None:
+            base_time = now
+        
+        # 确保 base_time 有时区信息，如果没有则使用东八区
+        if base_time.tzinfo is None:
+            base_time = base_time.replace(tzinfo=CST)
+        
+        # 确保计算出的时间也有时区信息
+        next_review_time = base_time + timedelta(days=total_days)
+        if next_review_time.tzinfo is None:
+            next_review_time = next_review_time.replace(tzinfo=CST)
+            
+        db_card.next_review_at = next_review_time
     else:
         db_card.review_count = 0
-        db_card.first_review_at = now
+        # 如果忘记，重置为初始状态，但保持创建时间作为首次复习时间的备选
+        if db_card.first_review_at is None:
+            db_card.first_review_at = db_card.created_at
         db_card.next_review_at = now
     db_card.updated_at = now
     await db.commit()
@@ -269,7 +294,7 @@ async def update_next_review(
     db_card.updated_at = datetime.now(CST)
     await db.commit()
     await db.refresh(db_card)
-    return db_card
+    return db_card 
 
 
 async def get_card_by_question_answer(
@@ -358,13 +383,27 @@ async def batch_create_cards_from_csv(
     
     for card_data in cards_data:
         try:
-            # 创建卡片
+            # 获取时间字段，确保时区信息正确
+            next_review_at = card_data.get_next_review_at_with_default(now)
+            created_at = card_data.get_created_at_with_default(now)
+            first_review_at = card_data.get_first_review_at()
+            
+            # 确保所有时间字段都有时区信息
+            if next_review_at and next_review_at.tzinfo is None:
+                next_review_at = next_review_at.replace(tzinfo=CST)
+            if created_at and created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=CST)
+            if first_review_at and first_review_at.tzinfo is None:
+                first_review_at = first_review_at.replace(tzinfo=CST)
+            
+            # 创建卡片，使用默认值策略
             db_card = Card(
                 question=card_data.question,
                 answer=card_data.answer,
                 review_count=card_data.review_count,
-                next_review_at=card_data.next_review_at,
-                created_at=card_data.created_at,
+                next_review_at=next_review_at,
+                created_at=created_at,
+                first_review_at=first_review_at,  # 允许NULL
                 updated_at=now,
                 user_id=user_id,
             )
@@ -386,3 +425,47 @@ async def batch_create_cards_from_csv(
         "success": success_count,
         "failed": failed_count
     } 
+
+async def validate_and_fix_card_data(db: AsyncSession, card: Card) -> bool:
+    """
+    验证并修复卡片数据的一致性问题
+    
+    参数:
+        db: 数据库会话
+        card: 要验证的卡片
+        
+    返回:
+        bool: 是否进行了修复
+    """
+    fixed = False
+    now = datetime.now(CST)
+    
+    # 1. 检查 first_review_at 的一致性
+    if card.review_count > 0 and card.first_review_at is None:
+        # 如果复习次数大于0但首次复习时间为空，设置为创建时间
+        card.first_review_at = card.created_at if card.created_at else now
+        fixed = True
+    
+    # 2. 确保所有时间字段都有时区信息
+    if card.next_review_at and card.next_review_at.tzinfo is None:
+        card.next_review_at = card.next_review_at.replace(tzinfo=CST)
+        fixed = True
+    
+    if card.first_review_at and card.first_review_at.tzinfo is None:
+        card.first_review_at = card.first_review_at.replace(tzinfo=CST)
+        fixed = True
+    
+    if card.created_at and card.created_at.tzinfo is None:
+        card.created_at = card.created_at.replace(tzinfo=CST)
+        fixed = True
+    
+    if card.updated_at and card.updated_at.tzinfo is None:
+        card.updated_at = card.updated_at.replace(tzinfo=CST)
+        fixed = True
+    
+    # 3. 如果进行了修复，更新数据库
+    if fixed:
+        await db.commit()
+        await db.refresh(card)
+    
+    return fixed 

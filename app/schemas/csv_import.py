@@ -20,18 +20,45 @@ class CSVImportRequest(BaseModel):
 class CSVRowData(BaseModel):
     """
     CSV行数据模型
+    
+    字段说明：
+    - 必填字段：question, answer
+    - 可选字段：created_at, review_count, next_review_at, first_review_at
+    - 默认值策略：
+      * created_at: 如果为None，使用当前时间
+      * review_count: 如果为None，使用0
+      * next_review_at: 如果为None，使用当前时间
+      * first_review_at: 如果为None，保持None（允许NULL）
     """
+    # 必填字段
     question: str = Field(..., description="知识点", max_length=100)
     answer: str = Field(..., description="答案", max_length=500)
+    
+    # 可选字段 - 时间相关
     created_at: Optional[datetime] = Field(None, description="创建时间")
-    review_count: Optional[int] = Field(0, description="复习次数")
     next_review_at: Optional[datetime] = Field(None, description="下次复习时间")
+    first_review_at: Optional[datetime] = Field(None, description="首次复习时间")
+    
+    # 可选字段 - 数值相关
+    review_count: Optional[int] = Field(0, description="复习次数")
 
     @validator('review_count')
     def validate_review_count(cls, v):
         if v is not None and v < 0:
             raise ValueError('复习次数不能为负数')
         return v or 0
+    
+    def get_created_at_with_default(self, default_time: datetime) -> datetime:
+        """获取创建时间，如果为None则使用默认时间"""
+        return self.created_at or default_time
+    
+    def get_next_review_at_with_default(self, default_time: datetime) -> datetime:
+        """获取下次复习时间，如果为None则使用默认时间"""
+        return self.next_review_at or default_time
+    
+    def get_first_review_at(self) -> Optional[datetime]:
+        """获取首次复习时间，允许为None"""
+        return self.first_review_at
 
 
 class ImportError(BaseModel):
