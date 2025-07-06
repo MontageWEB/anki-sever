@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from app.api import deps
@@ -12,19 +12,31 @@ router = APIRouter()
 
 class WxLoginRequest(BaseModel):
     code: str = Field(..., description="微信登录临时凭证code")
+    nickname: str = Field("", description="用户昵称（可选）")
+    avatar: str = Field("", description="用户头像url（可选）")
 
 class H5LoginRequest(BaseModel):
     nickname: str = Field("H5用户", description="用户昵称")
     avatar: str = Field("", description="用户头像url")
 
+class UpdateProfileRequest(BaseModel):
+    nickname: str = Field(..., description="用户昵称")
+    avatar: str = Field(..., description="用户头像url")
+
 @router.get("/me", response_model=UserOut)
 async def get_current_user(
+    response: Response,
     current_user_id: int = Depends(deps.get_current_user_id),
     db: AsyncSession = Depends(deps.get_db)
 ):
     """
     获取当前登录用户信息
     """
+    # 设置响应头，禁用缓存
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
     try:
         user = await crud_user.get_user(db, current_user_id)
         if not user:
@@ -75,11 +87,24 @@ async def wx_login(
         openid = wx_data["openid"]
         user = await crud_user.get_user_by_openid(db, openid)
         if not user:
+            # 新用户：使用前端传递的用户信息，如果没有则使用默认值
+            nickname = req.nickname if req.nickname else "微信用户"
+            avatar = req.avatar if req.avatar else ""
             user = await crud_user.create_user(db, user_in=crud_user.UserCreate(
                 openid=openid,
-                nickname="微信用户",
-                avatar=""
+                nickname=nickname,
+                avatar=avatar
             ))
+        else:
+            # 老用户：如果前端传递了新的用户信息，则更新
+            if req.nickname or req.avatar:
+                if req.nickname:
+                    user.nickname = req.nickname
+                if req.avatar:
+                    user.avatar = req.avatar
+                await db.commit()
+                await db.refresh(user)
+        
         token = security.create_access_token(str(user.id))
         return Token(access_token=token, token_type="bearer")
         
@@ -108,3 +133,27 @@ async def h5_login(
         ))
     token = security.create_access_token(str(user.id))
     return Token(access_token=token, token_type="bearer") 
+
+@router.post("/update-profile", response_model=UserOut)
+async def update_profile(
+    response: Response,
+    req: UpdateProfileRequest,
+    current_user_id: int = Depends(deps.get_current_user_id),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """
+    更新当前用户的昵称和头像
+    """
+    # 设置响应头，禁用缓存
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
+    user = await crud_user.get_user(db, current_user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    user.nickname = req.nickname
+    user.avatar = req.avatar
+    await db.commit()
+    await db.refresh(user)
+    return user 
