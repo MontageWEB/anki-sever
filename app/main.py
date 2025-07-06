@@ -86,9 +86,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # 配置静态文件服务（H5前端）
-# 直接使用 h5 目录
+# 处理前端构建的嵌套 static 结构
 if os.path.exists("h5"):
-    app.mount("/static", StaticFiles(directory="h5"), name="h5")
+    # 将 /static/ 路径映射到 h5/static/ 目录
+    app.mount("/static", StaticFiles(directory="h5/static"), name="h5_static")
+    # 将 /assets/ 路径映射到 h5/assets/ 目录
+    app.mount("/assets", StaticFiles(directory="h5/assets"), name="h5_assets")
 
 # H5 首页路由
 @app.get("/")
