@@ -220,9 +220,9 @@
   |--------------|----------|------|----------|------|
   | 知识点       | string   | ✅   | 100字符   | 卡片的问题/知识点 |
   | 答案         | string   | ✅   | 500字符   | 卡片的答案/解释 |
-  | 创建时间     | datetime | ❌   | -        | 支持“YYYY-MM-DD”或“YYYY-MM-DD HH:mm:ss”，如只填日期会自动补全为00:00:00 |
+  | 创建时间     | datetime | ❌   | -        | 支持“YYYY-MM-DD”、“YYYY-MM-DD HH:mm:ss”、“YYYY/M/D H:mm”等多种常见格式，系统自动识别 |
   | 复习次数     | integer  | ❌   | -        | 非负整数，默认0 |
-  | 下次复习时间 | datetime | ❌   | -        | 支持“YYYY-MM-DD”或“YYYY-MM-DD HH:mm:ss”，如只填日期会自动补全为00:00:00 |
+  | 下次复习时间 | datetime | ❌   | -        | 支持“YYYY-MM-DD”、“YYYY-MM-DD HH:mm:ss”、“YYYY/M/D H:mm”等多种常见格式，系统自动识别 |
 - 示例CSV：
 ```csv
 知识点,答案,创建时间,复习次数,下次复习时间
@@ -265,10 +265,64 @@ FastAPI的主要特点有哪些？,FastAPI是一个现代、快速的Web框架..
 - 重复检测：知识点和答案都相同才算重复，忽略大小写和空格差异
 
 #### 最佳实践
-- 先用预览接口验证数据，确认无误后再导入
+- 建议导入前用预览接口验证数据，确认无误后再导入
+- 时间字段支持多种常见格式（如 2025-8-7 0:00、2025/8/7 0:00、2025-08-07 00:00:00 等），系统自动识别，无需手动调整格式
 - 文件建议UTF-8编码，单次导入不超过1000条
 - 导入前建议备份数据
 - 导入后检查结果，处理错误
+
+#### 2.8 导出卡片（CSV导出）
+- 路径: POST `/csv-export/export`
+- 描述: 导出当前用户所有卡片为CSV文件，支持自定义是否包含表头
+- 请求头:
+  - `Authorization: Bearer <token>`
+- 请求体:
+```json
+{
+  "include_headers": true  // 是否包含表头，默认true
+}
+```
+- 响应体:
+```json
+{
+  "status": "success",
+  "message": "导出成功，共导出 106 张卡片",
+  "download_url": "/api/v1/csv-export/download/anki_cards_user_2_20250707_195059.csv",
+  "file_name": "anki_cards_user_2_20250707_195059.csv",
+  "total_records": 106,
+  "error_message": null
+}
+```
+- 字段说明：
+  | 字段           | 类型     | 说明                 |
+  |----------------|----------|----------------------|
+  | status         | string   | 状态（success/error）|
+  | message        | string   | 状态消息             |
+  | download_url   | string   | 下载链接             |
+  | file_name      | string   | 文件名               |
+  | total_records  | integer  | 导出记录数           |
+  | error_message  | string   | 错误信息（如有）     |
+
+- 下载接口:
+  - 路径: GET `/csv-export/download/{filename}`
+  - 描述: 下载导出的CSV文件（需token，且只能下载自己的文件）
+  - 请求头:
+    - `Authorization: Bearer <token>`
+  - 路径参数:
+    - `filename`: 文件名（由导出接口返回）
+  - 响应: 文件流（`Content-Type: text/csv`）
+
+- 错误处理：
+  - 未登录或token无效：`{"detail": "Not authenticated"}`
+  - 文件不存在：`{"detail": "文件不存在"}`
+  - 无权访问：`{"detail": "无权访问此文件"}`
+  - 没有可导出的卡片：`{"status": "error", "message": "没有可导出的卡片数据", "error_message": "您的卡片库为空，请先添加一些卡片"}`
+
+- 最佳实践：
+  - 建议导出前先用卡片列表接口检查数据
+  - 导出后可直接用Excel、Numbers等工具打开CSV文件
+  - 文件编码为UTF-8，字段顺序：知识点、答案、创建时间、复习次数、下次复习时间
+  - 导出文件仅保存在服务器本地，建议及时下载备份
 
 
 ### 3. 复习功能

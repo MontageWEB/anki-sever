@@ -28,33 +28,28 @@ CST = timezone(timedelta(hours=8))
 
 def parse_datetime(date_str: str) -> datetime:
     """
-    解析日期时间字符串，支持仅日期自动补全为00:00:00
-    
-    Args:
-        date_str: 日期时间字符串，格式：YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss
-        
-    Returns:
-        datetime: 解析后的日期时间对象（带东八区时区信息）
-        
-    Raises:
-        ValueError: 格式错误时抛出异常
+    解析日期时间字符串，支持多种常见格式（兼容Excel导出/手工输入）
     """
-    try:
-        # 优先尝试完整时间
-        dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
-        # 确保有时区信息
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=CST)
-        return dt
-    except ValueError:
+    formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y/%m/%d %H:%M",
+        "%Y/%m/%d",
+        "%Y/%-m/%-d %H:%M:%S",
+        "%Y/%-m/%-d %H:%M",
+        "%Y/%-m/%-d",
+    ]
+    for fmt in formats:
         try:
-            # 尝试仅日期，自动补全为00:00:00
-            dt = datetime.strptime(date_str.strip(), "%Y-%m-%d")
-            # 确保有时区信息
-            dt = dt.replace(hour=0, minute=0, second=0, tzinfo=CST)
+            dt = datetime.strptime(date_str.strip(), fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=CST)
             return dt
-        except ValueError:
-            raise ValueError(f"时间格式错误，应为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss，实际为: {date_str}")
+        except Exception:
+            continue
+    raise ValueError(f"时间格式错误，应为 YYYY-MM-DD HH:mm:ss 或常见日期格式，实际为: {date_str}")
 
 
 def parse_csv_content(content: str) -> tuple[List[Dict[str, Any]], Dict[str, int], bool]:

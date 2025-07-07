@@ -304,16 +304,29 @@ async def get_card_by_question_answer(
     answer: str
 ) -> Optional[Card]:
     """
-    根据问题和答案获取卡片
-    
-    参数:
-        db: 数据库会话
-        user_id: 用户ID
-        question: 问题
-        answer: 答案
-        
-    返回:
-        Card | None: 卡片对象，如果不存在则返回None
+    根据问题和答案获取卡片（如有多条只返回最早创建的那一条）
+    """
+    result = await db.execute(
+        select(Card).filter(
+            Card.user_id == user_id,
+            Card.question == question,
+            Card.answer == answer
+        ).order_by(Card.created_at.asc())
+    )
+    cards = result.scalars().all()
+    if not cards:
+        return None
+    return cards[0]
+
+
+async def get_cards_by_question_answer(
+    db: AsyncSession,
+    user_id: int,
+    question: str,
+    answer: str
+) -> list[Card]:
+    """
+    获取所有匹配问题和答案的卡片（同一用户）
     """
     result = await db.execute(
         select(Card).filter(
@@ -322,7 +335,7 @@ async def get_card_by_question_answer(
             Card.answer == answer
         )
     )
-    return result.scalar_one_or_none()
+    return result.scalars().all()
 
 
 async def update_card_by_question_answer(
@@ -333,29 +346,18 @@ async def update_card_by_question_answer(
     new_data
 ) -> Card:
     """
-    根据问题和答案更新卡片
-    
-    参数:
-        db: 数据库会话
-        user_id: 用户ID
-        question: 问题
-        answer: 答案
-        new_data: 新的卡片数据
-        
-    返回:
-        Card: 更新后的卡片
+    根据问题和答案更新卡片（只覆盖一条，优先最早创建的那一条）
     """
-    card = await get_card_by_question_answer(db, user_id, question, answer)
-    if not card:
+    cards = await get_cards_by_question_answer(db, user_id, question, answer)
+    if not cards:
         raise Exception("卡片不存在")
-    
-    # 更新字段
+    # 只覆盖最早创建的那一条
+    card = sorted(cards, key=lambda c: c.created_at)[0]
     card.question = new_data.question
     card.answer = new_data.answer
     card.review_count = new_data.review_count
-    card.next_review_at = new_data.next_review_at
+    card.next_review_at = new_data.next_review_at or datetime.now(CST)
     card.updated_at = datetime.now(CST)
-    
     await db.commit()
     await db.refresh(card)
     return card

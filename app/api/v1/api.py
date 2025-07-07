@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import cards, review_rules, auth, csv_import
+from app.api.v1.endpoints import cards, review_rules, auth, csv_import, csv_export
 
 api_router = APIRouter()
 
@@ -26,4 +26,10 @@ api_router.include_router(
     csv_import.router,
     prefix="/csv-import",
     tags=["CSV导入"]
+)
+
+api_router.include_router(
+    csv_export.router,
+    prefix="/csv-export",
+    tags=["CSV导出"]
 ) 
