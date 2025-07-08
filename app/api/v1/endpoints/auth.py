@@ -72,16 +72,21 @@ async def wx_login(
     
     # 正常微信流程
     try:
+        import traceback
+        print("wx_login req:", req)
         wx_data = await wx.get_wx_openid(settings.WECHAT_APPID, settings.WECHAT_SECRET, req.code)
+        print("wx_login wx_data:", wx_data)
         if not wx_data:
             raise HTTPException(status_code=400, detail="微信API调用失败")
         
         if "errcode" in wx_data:
             # 微信API返回错误
             error_msg = f"微信登录失败: {wx_data.get('errmsg', '未知错误')} (错误码: {wx_data.get('errcode')})"
+            print("wx_login errcode:", wx_data)
             raise HTTPException(status_code=400, detail=error_msg)
         
         if "openid" not in wx_data:
+            print("wx_login missing openid:", wx_data)
             raise HTTPException(status_code=400, detail="微信登录失败: 未获取到openid")
         
         openid = wx_data["openid"]
@@ -111,6 +116,9 @@ async def wx_login(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print("微信登录异常:", e)
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"微信登录异常: {str(e)}")
 
 @router.post("/h5-login", response_model=Token)
