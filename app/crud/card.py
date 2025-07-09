@@ -65,26 +65,37 @@ async def get_cards(
     skip: int = 0,
     limit: int = 20,
     search: Optional[str] = None,
-    user_id: int
+    user_id: int,
+    filter_tag: str = "all"
 ) -> tuple[list[Card], int]:
     """
-    获取卡片列表
-    
-    参数:
-        db: 数据库会话
-        skip: 跳过的记录数（用于分页）
-        limit: 返回的最大记录数
-        search: 搜索关键词（可选）
-        user_id: 用户ID
-        
-    返回:
-        tuple[list[Card], int]: 卡片列表和总记录数
+    获取卡片列表，支持筛选标签
+    filter_tag: all（全部）、today（今日复习）、tomorrow（明日复习）
     """
-    # 构建基础查询，添加按创建时间倒序排序
-    query: Select = select(Card).filter(Card.user_id == user_id).order_by(Card.created_at.desc())
+    from datetime import datetime, timedelta
+    # 定义东八区时区
+    CST = timezone(timedelta(hours=8))
+    now = datetime.now(CST)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=CST)
+    tomorrow_start = today_start + timedelta(days=1)
+    day_after_tomorrow_start = today_start + timedelta(days=2)
+
+    # 基础查询
+    query: Select = select(Card).filter(Card.user_id == user_id)
     count_query: Select = select(Card).filter(Card.user_id == user_id)
 
-    # 如果有搜索关键词，添加搜索条件
+    # 筛选逻辑
+    if filter_tag == "today":
+        # 下次复习时间 < 明天0点（包含今天及所有已过期的卡片）
+        query = query.filter(Card.next_review_at < tomorrow_start)
+        count_query = count_query.filter(Card.next_review_at < tomorrow_start)
+    elif filter_tag == "tomorrow":
+        # 下次复习时间 >= 明天0点，且 < 后天0点
+        query = query.filter(Card.next_review_at >= tomorrow_start, Card.next_review_at < day_after_tomorrow_start)
+        count_query = count_query.filter(Card.next_review_at >= tomorrow_start, Card.next_review_at < day_after_tomorrow_start)
+    # all: 不加任何筛选
+
+    # 搜索
     if search:
         search_filter = (
             Card.question.ilike(f"%{search}%") |
@@ -92,6 +103,9 @@ async def get_cards(
         )
         query = query.filter(search_filter)
         count_query = count_query.filter(search_filter)
+
+    # 排序
+    query = query.order_by(Card.next_review_at.asc(), Card.created_at.asc())
 
     # 获取总数
     total_result = await db.execute(select(func.count()).select_from(count_query.subquery()))
@@ -151,11 +165,11 @@ async def get_cards_to_review(
     # 使用东八区时间
     now = datetime.now(CST)
     
-    # 构建查询
+    # 构建查询，先按 next_review_at 升序，再按 created_at 升序
     query = select(Card).where(
         Card.next_review_at <= now,
         Card.user_id == user_id
-    ).order_by(Card.next_review_at.asc())
+    ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
     
     # 计算总数
     count_query = select(func.count()).select_from(
