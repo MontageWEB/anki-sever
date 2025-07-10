@@ -72,11 +72,9 @@ async def get_cards(
     获取卡片列表，支持筛选标签
     filter_tag: all（全部）、today（今日复习）、tomorrow（明日复习）
     """
-    from datetime import datetime, timedelta
-    # 定义东八区时区
-    CST = timezone(timedelta(hours=8))
-    now = datetime.now(CST)
-    today_start = datetime(now.year, now.month, now.day, tzinfo=CST)
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
     tomorrow_start = today_start + timedelta(days=1)
     day_after_tomorrow_start = today_start + timedelta(days=2)
 
@@ -152,42 +150,30 @@ async def get_cards_to_review(
 ) -> tuple[list[Card], int]:
     """
     获取需要复习的卡片列表
-    
-    参数:
-        db: 数据库会话
-        user_id: 用户ID
-        page: 页码，从1开始
-        per_page: 每页数量
-        
-    返回:
-        tuple[list[Card], int]: (卡片列表, 总数)
     """
-    # 使用东八区时间
-    now = datetime.now(CST)
-    
-    # 构建查询，先按 next_review_at 升序，再按 created_at 升序
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    tomorrow_start = today_start + timedelta(days=1)
+    # 构建查询，筛选下次复习时间 < 明天0点
     query = select(Card).where(
-        Card.next_review_at <= now,
+        Card.next_review_at < tomorrow_start,
         Card.user_id == user_id
     ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
-    
     # 计算总数
     count_query = select(func.count()).select_from(
         select(Card).where(
-            Card.next_review_at <= now,
+            Card.next_review_at < tomorrow_start,
             Card.user_id == user_id
         ).subquery()
     )
-    
     # 执行查询
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
-    
     # 分页
     query = query.offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(query)
     cards = result.scalars().all()
-    
     return cards, total
 
 
@@ -261,14 +247,18 @@ async def update_review_progress(
         if base_time is None:
             base_time = now
         
-        # 确保 base_time 有时区信息，如果没有则使用东八区
+        # 如果卡片已过期，强制使用当前时间作为基准时间
+        if base_time < now:
+            base_time = now
+        
+        # 确保 base_time 有时区信息，如果没有则使用 UTC
         if base_time.tzinfo is None:
-            base_time = base_time.replace(tzinfo=CST)
+            base_time = base_time.replace(tzinfo=timezone.utc)
         
         # 确保计算出的时间也有时区信息
         next_review_time = base_time + timedelta(days=total_days)
         if next_review_time.tzinfo is None:
-            next_review_time = next_review_time.replace(tzinfo=CST)
+            next_review_time = next_review_time.replace(tzinfo=timezone.utc)
             
         db_card.next_review_at = next_review_time
     else:
