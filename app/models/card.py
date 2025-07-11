@@ -10,9 +10,6 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 from app.models.user import User  # 添加 User 模型的导入
 
-# 定义东八区时区
-CST = timezone(timedelta(hours=8))
-
 class Card(Base):
     """
     知识卡片模型
@@ -61,7 +58,7 @@ class Card(Base):
     # 下次复习时间
     next_review_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(CST),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
         index=True,
         comment="下次复习时间"
@@ -70,13 +67,13 @@ class Card(Base):
     # 时间相关字段
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(CST),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(CST),
-        onupdate=lambda: datetime.now(CST),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 

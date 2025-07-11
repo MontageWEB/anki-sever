@@ -12,15 +12,11 @@ from sqlalchemy import select, func
 from fastapi import HTTPException
 
 from app.models.card import Card
-from datetime import timezone, timedelta
-
-# 定义东八区时区
-CST = timezone(timedelta(hours=8))
-
 
 def format_datetime_for_csv(dt: Optional[datetime]) -> str:
     """
     格式化日期时间为CSV格式（YYYY-MM-DD HH:mm:ss）
+    统一使用UTC时区，符合项目规范
     """
     if dt is None:
         return ""
@@ -36,12 +32,10 @@ def format_datetime_for_csv(dt: Optional[datetime]) -> str:
                 continue
         else:
             return dt  # 兜底直接返回原字符串
-    # 确保有时区信息
+    # 确保有时区信息，统一使用UTC
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=CST)
-    # 转换为东八区时间
-    if dt.tzinfo != CST:
-        dt = dt.astimezone(CST)
+        dt = dt.replace(tzinfo=timezone.utc)
+    # 统一使用UTC时区，不转换为其他时区
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -72,6 +66,17 @@ async def get_user_cards_for_export(
     
     result = await db.execute(query)
     cards = result.scalars().all()
+    
+    # 修正所有卡片的时间字段时区信息
+    for card in cards:
+        if card.created_at and card.created_at.tzinfo is None:
+            card.created_at = card.created_at.replace(tzinfo=timezone.utc)
+        if card.updated_at and card.updated_at.tzinfo is None:
+            card.updated_at = card.updated_at.replace(tzinfo=timezone.utc)
+        if card.first_review_at and card.first_review_at.tzinfo is None:
+            card.first_review_at = card.first_review_at.replace(tzinfo=timezone.utc)
+        if card.next_review_at and card.next_review_at.tzinfo is None:
+            card.next_review_at = card.next_review_at.replace(tzinfo=timezone.utc)
     
     export_data = []
     for card in cards:
@@ -156,7 +161,7 @@ def save_csv_file(content: str, user_id: int) -> str:
     os.makedirs(export_dir, exist_ok=True)
     
     # 生成文件名
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"anki_cards_user_{user_id}_{timestamp}.csv"
     filepath = os.path.join(export_dir, filename)
     

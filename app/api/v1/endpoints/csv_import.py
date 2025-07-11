@@ -22,14 +22,11 @@ from app.schemas.csv_import import (
 
 router = APIRouter()
 
-# 定义东八区时区
-CST = timezone(timedelta(hours=8))
-
-
 def parse_datetime(date_str: str) -> datetime:
     """
     解析日期时间字符串，支持多种常见格式（兼容Excel导出/手工输入）
     """
+    from datetime import datetime, timezone
     formats = [
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
@@ -45,7 +42,7 @@ def parse_datetime(date_str: str) -> datetime:
         try:
             dt = datetime.strptime(date_str.strip(), fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=CST)
+                dt = dt.replace(tzinfo=timezone.utc)
             return dt
         except Exception:
             continue
@@ -199,7 +196,7 @@ def validate_csv_data(rows: List[Dict[str, Any]]) -> tuple[List[CSVRowData], Lis
     """
     valid_data = []
     errors = []
-    now = datetime.now(CST)
+    now = datetime.now(timezone.utc)
     
     for row in rows:
         try:

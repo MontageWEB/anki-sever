@@ -20,13 +20,10 @@ from app.core.review_strategy import ConfigurableReviewStrategy
 # 创建可配置的复习策略实例
 review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
 
-# 定义东八区时区
-CST = timezone(timedelta(hours=8))
-
 async def create_card(db: AsyncSession, card: CardCreate, user_id: int) -> Card:
     """创建新卡片"""
-    # 使用东八区时间
-    now = datetime.now(CST)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     
     db_card = Card(
         question=card.question,
@@ -45,7 +42,7 @@ async def create_card(db: AsyncSession, card: CardCreate, user_id: int) -> Card:
 
 async def get_card(db: AsyncSession, card_id: int, user_id: int) -> Optional[Card]:
     """
-    获取指定ID的卡片
+    根据ID获取单个卡片
     
     参数：
         db: 数据库会话
@@ -53,10 +50,30 @@ async def get_card(db: AsyncSession, card_id: int, user_id: int) -> Optional[Car
         user_id: 用户ID
         
     返回：
-        Card | None: 卡片对象，如果不存在则返回None
+        Card: 卡片对象，如果不存在则返回 None
     """
-    result = await db.execute(select(Card).filter(Card.id == card_id, Card.user_id == user_id))
-    return result.scalar_one_or_none()
+    from datetime import datetime, timezone
+    
+    result = await db.execute(
+        select(Card).filter(
+            Card.id == card_id,
+            Card.user_id == user_id
+        )
+    )
+    card = result.scalar_one_or_none()
+    
+    # 修正卡片的时间字段时区信息
+    if card:
+        if card.created_at and card.created_at.tzinfo is None:
+            card.created_at = card.created_at.replace(tzinfo=timezone.utc)
+        if card.updated_at and card.updated_at.tzinfo is None:
+            card.updated_at = card.updated_at.replace(tzinfo=timezone.utc)
+        if card.first_review_at and card.first_review_at.tzinfo is None:
+            card.first_review_at = card.first_review_at.replace(tzinfo=timezone.utc)
+        if card.next_review_at and card.next_review_at.tzinfo is None:
+            card.next_review_at = card.next_review_at.replace(tzinfo=timezone.utc)
+    
+    return card
 
 
 async def get_cards(
@@ -69,49 +86,76 @@ async def get_cards(
     filter_tag: str = "all"
 ) -> tuple[list[Card], int]:
     """
-    获取卡片列表，支持筛选标签
-    filter_tag: all（全部）、today（今日复习）、tomorrow（明日复习）
+    获取卡片列表，支持搜索和筛选
+    
+    参数：
+        db: 数据库会话
+        skip: 跳过的记录数
+        limit: 限制返回的记录数
+        search: 搜索关键词
+        user_id: 用户ID
+        filter_tag: 筛选标签，可选值：all（全部）、today（今日复习）、tomorrow（明日复习）
+        
+    返回：
+        tuple: (卡片列表, 总数)
     """
-    from datetime import datetime, timedelta, timezone
-    now = datetime.now(timezone.utc)
-    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-    tomorrow_start = today_start + timedelta(days=1)
-    day_after_tomorrow_start = today_start + timedelta(days=2)
-
-    # 基础查询
-    query: Select = select(Card).filter(Card.user_id == user_id)
-    count_query: Select = select(Card).filter(Card.user_id == user_id)
-
-    # 筛选逻辑
-    if filter_tag == "today":
-        # 下次复习时间 < 明天0点（包含今天及所有已过期的卡片）
-        query = query.filter(Card.next_review_at < tomorrow_start)
-        count_query = count_query.filter(Card.next_review_at < tomorrow_start)
-    elif filter_tag == "tomorrow":
-        # 下次复习时间 >= 明天0点，且 < 后天0点
-        query = query.filter(Card.next_review_at >= tomorrow_start, Card.next_review_at < day_after_tomorrow_start)
-        count_query = count_query.filter(Card.next_review_at >= tomorrow_start, Card.next_review_at < day_after_tomorrow_start)
-    # all: 不加任何筛选
-
-    # 搜索
+    from datetime import datetime, timezone, timedelta
+    
+    # 构建基础查询
+    query = select(Card).filter(Card.user_id == user_id)
+    
+    # 添加搜索条件
     if search:
-        search_filter = (
-            Card.question.ilike(f"%{search}%") |
-            Card.answer.ilike(f"%{search}%")
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                Card.question.ilike(search_term),
+                Card.answer.ilike(search_term)
+            )
         )
-        query = query.filter(search_filter)
-        count_query = count_query.filter(search_filter)
-
-    # 排序
-    query = query.order_by(Card.next_review_at.asc(), Card.created_at.asc())
-
+    
+    # 添加筛选条件
+    if filter_tag == "today":
+        # 今日复习：包含已过期的卡片
+        now = datetime.now(timezone.utc)
+        query = query.filter(Card.next_review_at <= now)
+    elif filter_tag == "tomorrow":
+        # 明日复习：明天到期的卡片
+        now = datetime.now(timezone.utc)
+        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        tomorrow_start = today_start + timedelta(days=1)
+        day_after_tomorrow_start = tomorrow_start + timedelta(days=1)
+        query = query.filter(
+            Card.next_review_at >= tomorrow_start,
+            Card.next_review_at < day_after_tomorrow_start
+        )
+    # filter_tag == "all" 时不添加额外筛选条件
+    
     # 获取总数
-    total_result = await db.execute(select(func.count()).select_from(count_query.subquery()))
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
     total = total_result.scalar()
-
-    # 获取分页数据
-    result = await db.execute(query.offset(skip).limit(limit))
-    return result.scalars().all(), total
+    
+    # 添加排序和分页
+    query = query.order_by(Card.next_review_at.asc(), Card.created_at.asc())
+    query = query.offset(skip).limit(limit)
+    
+    # 执行查询
+    result = await db.execute(query)
+    cards = result.scalars().all()
+    
+    # 修正所有卡片的时间字段时区信息
+    for card in cards:
+        if card.created_at and card.created_at.tzinfo is None:
+            card.created_at = card.created_at.replace(tzinfo=timezone.utc)
+        if card.updated_at and card.updated_at.tzinfo is None:
+            card.updated_at = card.updated_at.replace(tzinfo=timezone.utc)
+        if card.first_review_at and card.first_review_at.tzinfo is None:
+            card.first_review_at = card.first_review_at.replace(tzinfo=timezone.utc)
+        if card.next_review_at and card.next_review_at.tzinfo is None:
+            card.next_review_at = card.next_review_at.replace(tzinfo=timezone.utc)
+    
+    return cards, total
 
 
 async def update_card(
@@ -149,31 +193,55 @@ async def get_cards_to_review(
     per_page: int = 100
 ) -> tuple[list[Card], int]:
     """
-    获取需要复习的卡片列表
+    获取需要复习的卡片列表（已到期的卡片）
+    
+    参数：
+        db: 数据库会话
+        user_id: 用户ID
+        page: 页码
+        per_page: 每页数量
+        
+    返回：
+        tuple: (卡片列表, 总数)
     """
     from datetime import datetime, timezone
+    
+    # 计算偏移量
+    skip = (page - 1) * per_page
+    
+    # 获取当前时间（UTC）
     now = datetime.now(timezone.utc)
-    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-    tomorrow_start = today_start + timedelta(days=1)
-    # 构建查询，筛选下次复习时间 < 明天0点
-    query = select(Card).where(
-        Card.next_review_at < tomorrow_start,
-        Card.user_id == user_id
-    ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
-    # 计算总数
-    count_query = select(func.count()).select_from(
-        select(Card).where(
-            Card.next_review_at < tomorrow_start,
-            Card.user_id == user_id
-        ).subquery()
+    
+    # 查询已到期的卡片
+    result = await db.execute(
+        select(Card).filter(
+            Card.user_id == user_id,
+            Card.next_review_at <= now
+        ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
+        .offset(skip).limit(per_page)
     )
-    # 执行查询
-    total_result = await db.execute(count_query)
-    total = total_result.scalar_one()
-    # 分页
-    query = query.offset((page - 1) * per_page).limit(per_page)
-    result = await db.execute(query)
     cards = result.scalars().all()
+    
+    # 修正所有卡片的时间字段时区信息
+    for card in cards:
+        if card.created_at and card.created_at.tzinfo is None:
+            card.created_at = card.created_at.replace(tzinfo=timezone.utc)
+        if card.updated_at and card.updated_at.tzinfo is None:
+            card.updated_at = card.updated_at.replace(tzinfo=timezone.utc)
+        if card.first_review_at and card.first_review_at.tzinfo is None:
+            card.first_review_at = card.first_review_at.replace(tzinfo=timezone.utc)
+        if card.next_review_at and card.next_review_at.tzinfo is None:
+            card.next_review_at = card.next_review_at.replace(tzinfo=timezone.utc)
+    
+    # 获取总数
+    count_result = await db.execute(
+        select(func.count(Card.id)).filter(
+            Card.user_id == user_id,
+            Card.next_review_at <= now
+        )
+    )
+    total = count_result.scalar()
+    
     return cards, total
 
 
@@ -210,14 +278,26 @@ async def update_review_progress(
     返回：
         Card: 更新后的卡片对象
     """
-    now = datetime.now(CST)
+    from datetime import datetime, timezone
+    
+    # 修正时间字段的时区信息，确保所有时间字段都有 tzinfo=timezone.utc
+    if db_card.created_at and db_card.created_at.tzinfo is None:
+        db_card.created_at = db_card.created_at.replace(tzinfo=timezone.utc)
+    if db_card.updated_at and db_card.updated_at.tzinfo is None:
+        db_card.updated_at = db_card.updated_at.replace(tzinfo=timezone.utc)
+    if db_card.first_review_at and db_card.first_review_at.tzinfo is None:
+        db_card.first_review_at = db_card.first_review_at.replace(tzinfo=timezone.utc)
+    if db_card.next_review_at and db_card.next_review_at.tzinfo is None:
+        db_card.next_review_at = db_card.next_review_at.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
     
     if remembered:
         # 如果是第一次复习，设置首次复习时间
         if db_card.review_count == 0 or db_card.first_review_at is None:
             # 确保设置的时间有时区信息
             if now.tzinfo is None:
-                now = now.replace(tzinfo=CST)
+                now = now.replace(tzinfo=timezone.utc)
             db_card.first_review_at = now
         # 增加复习次数
         db_card.review_count += 1
@@ -290,15 +370,16 @@ async def update_next_review(
     返回:
         Card: 更新后的卡片
     """
-    # 确保使用东八区时间
+    from datetime import datetime, timezone
+    # 确保使用 UTC 时间
     if next_review_at.tzinfo is None:
-        next_review_at = next_review_at.replace(tzinfo=CST)
+        next_review_at = next_review_at.replace(tzinfo=timezone.utc)
     
     db_card.next_review_at = next_review_at
-    db_card.updated_at = datetime.now(CST)
+    db_card.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(db_card)
-    return db_card 
+    return db_card
 
 
 async def get_card_by_question_answer(
@@ -360,8 +441,8 @@ async def update_card_by_question_answer(
     card.question = new_data.question
     card.answer = new_data.answer
     card.review_count = new_data.review_count
-    card.next_review_at = new_data.next_review_at or datetime.now(CST)
-    card.updated_at = datetime.now(CST)
+    card.next_review_at = new_data.next_review_at or datetime.now(timezone.utc)
+    card.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(card)
     return card
@@ -385,7 +466,8 @@ async def batch_create_cards_from_csv(
     """
     success_count = 0
     failed_count = 0
-    now = datetime.now(CST)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     
     for card_data in cards_data:
         try:
@@ -396,11 +478,11 @@ async def batch_create_cards_from_csv(
             
             # 确保所有时间字段都有时区信息
             if next_review_at and next_review_at.tzinfo is None:
-                next_review_at = next_review_at.replace(tzinfo=CST)
+                next_review_at = next_review_at.replace(tzinfo=timezone.utc)
             if created_at and created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=CST)
+                created_at = created_at.replace(tzinfo=timezone.utc)
             if first_review_at and first_review_at.tzinfo is None:
-                first_review_at = first_review_at.replace(tzinfo=CST)
+                first_review_at = first_review_at.replace(tzinfo=timezone.utc)
             
             # 创建卡片，使用默认值策略
             db_card = Card(
@@ -444,7 +526,8 @@ async def validate_and_fix_card_data(db: AsyncSession, card: Card) -> bool:
         bool: 是否进行了修复
     """
     fixed = False
-    now = datetime.now(CST)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     
     # 1. 检查 first_review_at 的一致性
     if card.review_count > 0 and card.first_review_at is None:
@@ -454,19 +537,19 @@ async def validate_and_fix_card_data(db: AsyncSession, card: Card) -> bool:
     
     # 2. 确保所有时间字段都有时区信息
     if card.next_review_at and card.next_review_at.tzinfo is None:
-        card.next_review_at = card.next_review_at.replace(tzinfo=CST)
+        card.next_review_at = card.next_review_at.replace(tzinfo=timezone.utc)
         fixed = True
     
     if card.first_review_at and card.first_review_at.tzinfo is None:
-        card.first_review_at = card.first_review_at.replace(tzinfo=CST)
+        card.first_review_at = card.first_review_at.replace(tzinfo=timezone.utc)
         fixed = True
     
     if card.created_at and card.created_at.tzinfo is None:
-        card.created_at = card.created_at.replace(tzinfo=CST)
+        card.created_at = card.created_at.replace(tzinfo=timezone.utc)
         fixed = True
     
     if card.updated_at and card.updated_at.tzinfo is None:
-        card.updated_at = card.updated_at.replace(tzinfo=CST)
+        card.updated_at = card.updated_at.replace(tzinfo=timezone.utc)
         fixed = True
     
     # 3. 如果进行了修复，更新数据库
