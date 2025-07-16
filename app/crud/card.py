@@ -16,6 +16,7 @@ from app.models.review_rule import ReviewRule
 from app.schemas.card import CardCreate, CardUpdate
 from app.core.config import settings
 from app.core.review_strategy import ConfigurableReviewStrategy
+from app.utils.timezone import fix_timezone_fields
 
 # 创建可配置的复习策略实例
 review_strategy = ConfigurableReviewStrategy(settings.REVIEW_STRATEGY_RULES)
@@ -118,7 +119,9 @@ async def get_cards(
     if filter_tag == "today":
         # 今日复习：包含已过期的卡片
         now = datetime.now(timezone.utc)
-        query = query.filter(Card.next_review_at <= now)
+        # 只比较日期部分，不比较具体时间
+        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        query = query.filter(Card.next_review_at < today_start + timedelta(days=1))
     elif filter_tag == "tomorrow":
         # 明日复习：明天到期的卡片
         now = datetime.now(timezone.utc)
@@ -204,19 +207,22 @@ async def get_cards_to_review(
     返回：
         tuple: (卡片列表, 总数)
     """
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
+    from app.utils.timezone import fix_timezone_fields
     
     # 计算偏移量
     skip = (page - 1) * per_page
     
     # 获取当前时间（UTC）
     now = datetime.now(timezone.utc)
+    # 只比较日期部分，不比较具体时间
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
     
-    # 查询已到期的卡片
+    # 查询已到期的卡片（今天及之前的卡片）
     result = await db.execute(
         select(Card).filter(
             Card.user_id == user_id,
-            Card.next_review_at <= now
+            Card.next_review_at < today_start + timedelta(days=1)
         ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
         .offset(skip).limit(per_page)
     )
@@ -224,20 +230,13 @@ async def get_cards_to_review(
     
     # 修正所有卡片的时间字段时区信息
     for card in cards:
-        if card.created_at and card.created_at.tzinfo is None:
-            card.created_at = card.created_at.replace(tzinfo=timezone.utc)
-        if card.updated_at and card.updated_at.tzinfo is None:
-            card.updated_at = card.updated_at.replace(tzinfo=timezone.utc)
-        if card.first_review_at and card.first_review_at.tzinfo is None:
-            card.first_review_at = card.first_review_at.replace(tzinfo=timezone.utc)
-        if card.next_review_at and card.next_review_at.tzinfo is None:
-            card.next_review_at = card.next_review_at.replace(tzinfo=timezone.utc)
+        fix_timezone_fields(card)
     
     # 获取总数
     count_result = await db.execute(
         select(func.count(Card.id)).filter(
             Card.user_id == user_id,
-            Card.next_review_at <= now
+            Card.next_review_at < today_start + timedelta(days=1)
         )
     )
     total = count_result.scalar()
