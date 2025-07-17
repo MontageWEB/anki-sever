@@ -117,20 +117,30 @@ async def get_cards(
     
     # 添加筛选条件
     if filter_tag == "today":
-        # 今日复习：包含已过期的卡片
-        now = datetime.now(timezone.utc)
-        # 只比较日期部分，不比较具体时间
-        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        query = query.filter(Card.next_review_at < today_start + timedelta(days=1))
+        # 今日复习：基于用户本地时间（北京时间）判断
+        from datetime import timezone, timedelta
+        beijing_tz = timezone(timedelta(hours=8))
+        now_beijing = datetime.now(beijing_tz)
+        today_start_beijing = datetime(now_beijing.year, now_beijing.month, now_beijing.day, tzinfo=beijing_tz)
+        today_end_beijing = today_start_beijing + timedelta(days=1)
+        # 转换为UTC时间进行比较
+        today_start_utc = today_start_beijing.astimezone(timezone.utc)
+        today_end_utc = today_end_beijing.astimezone(timezone.utc)
+        query = query.filter(Card.next_review_at >= today_start_utc, Card.next_review_at < today_end_utc)
     elif filter_tag == "tomorrow":
-        # 明日复习：明天到期的卡片
-        now = datetime.now(timezone.utc)
-        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        tomorrow_start = today_start + timedelta(days=1)
-        day_after_tomorrow_start = tomorrow_start + timedelta(days=1)
+        # 明日复习：基于用户本地时间（北京时间）判断
+        from datetime import timezone, timedelta
+        beijing_tz = timezone(timedelta(hours=8))
+        now_beijing = datetime.now(beijing_tz)
+        today_start_beijing = datetime(now_beijing.year, now_beijing.month, now_beijing.day, tzinfo=beijing_tz)
+        tomorrow_start_beijing = today_start_beijing + timedelta(days=1)
+        day_after_tomorrow_start_beijing = tomorrow_start_beijing + timedelta(days=1)
+        # 转换为UTC时间进行比较
+        tomorrow_start_utc = tomorrow_start_beijing.astimezone(timezone.utc)
+        day_after_tomorrow_start_utc = day_after_tomorrow_start_beijing.astimezone(timezone.utc)
         query = query.filter(
-            Card.next_review_at >= tomorrow_start,
-            Card.next_review_at < day_after_tomorrow_start
+            Card.next_review_at >= tomorrow_start_utc,
+            Card.next_review_at < day_after_tomorrow_start_utc
         )
     # filter_tag == "all" 时不添加额外筛选条件
     
@@ -197,50 +207,41 @@ async def get_cards_to_review(
 ) -> tuple[list[Card], int]:
     """
     获取需要复习的卡片列表（已到期的卡片）
-    
-    参数：
-        db: 数据库会话
-        user_id: 用户ID
-        page: 页码
-        per_page: 每页数量
-        
-    返回：
-        tuple: (卡片列表, 总数)
     """
     from datetime import datetime, timezone, timedelta
     from app.utils.timezone import fix_timezone_fields
-    
     # 计算偏移量
     skip = (page - 1) * per_page
-    
-    # 获取当前时间（UTC）
-    now = datetime.now(timezone.utc)
-    # 只比较日期部分，不比较具体时间
-    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-    
-    # 查询已到期的卡片（今天及之前的卡片）
+    # 获取当前北京时间
+    beijing_tz = timezone(timedelta(hours=8))
+    now_beijing = datetime.now(beijing_tz)
+    today_start_beijing = datetime(now_beijing.year, now_beijing.month, now_beijing.day, tzinfo=beijing_tz)
+    today_end_beijing = today_start_beijing + timedelta(days=1)
+    # 转换为UTC时间进行比较
+    today_start_utc = today_start_beijing.astimezone(timezone.utc)
+    today_end_utc = today_end_beijing.astimezone(timezone.utc)
+    # 查询今日及之前的卡片（北京时间）
     result = await db.execute(
         select(Card).filter(
             Card.user_id == user_id,
-            Card.next_review_at < today_start + timedelta(days=1)
+            Card.next_review_at >= today_start_utc,
+            Card.next_review_at < today_end_utc
         ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
         .offset(skip).limit(per_page)
     )
     cards = result.scalars().all()
-    
     # 修正所有卡片的时间字段时区信息
     for card in cards:
         fix_timezone_fields(card)
-    
     # 获取总数
     count_result = await db.execute(
         select(func.count(Card.id)).filter(
             Card.user_id == user_id,
-            Card.next_review_at < today_start + timedelta(days=1)
+            Card.next_review_at >= today_start_utc,
+            Card.next_review_at < today_end_utc
         )
     )
     total = count_result.scalar()
-    
     return cards, total
 
 
