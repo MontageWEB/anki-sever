@@ -117,7 +117,7 @@ async def get_cards(
     
     # 添加筛选条件
     if filter_tag == "today":
-        # 今日复习：基于用户本地时间（北京时间）判断
+        # 今日复习：基于用户本地时间（北京时间）判断 - 包含已过期的卡片
         from datetime import timezone, timedelta
         beijing_tz = timezone(timedelta(hours=8))
         now_beijing = datetime.now(beijing_tz)
@@ -126,7 +126,7 @@ async def get_cards(
         # 转换为UTC时间进行比较
         today_start_utc = today_start_beijing.astimezone(timezone.utc)
         today_end_utc = today_end_beijing.astimezone(timezone.utc)
-        query = query.filter(Card.next_review_at >= today_start_utc, Card.next_review_at < today_end_utc)
+        query = query.filter(Card.next_review_at < today_end_utc)  # 包含今天及之前的所有卡片（已过期+今天到期）
     elif filter_tag == "tomorrow":
         # 明日复习：基于用户本地时间（北京时间）判断
         from datetime import timezone, timedelta
@@ -220,12 +220,11 @@ async def get_cards_to_review(
     # 转换为UTC时间进行比较
     today_start_utc = today_start_beijing.astimezone(timezone.utc)
     today_end_utc = today_end_beijing.astimezone(timezone.utc)
-    # 查询今日及之前的卡片（北京时间）
+    # 查询今日及之前的卡片（北京时间）- 包含已过期的卡片
     result = await db.execute(
         select(Card).filter(
             Card.user_id == user_id,
-            Card.next_review_at >= today_start_utc,
-            Card.next_review_at < today_end_utc
+            Card.next_review_at < today_end_utc  # 包含今天及之前的所有卡片（已过期+今天到期）
         ).order_by(Card.next_review_at.asc(), Card.created_at.asc())
         .offset(skip).limit(per_page)
     )
@@ -237,8 +236,7 @@ async def get_cards_to_review(
     count_result = await db.execute(
         select(func.count(Card.id)).filter(
             Card.user_id == user_id,
-            Card.next_review_at >= today_start_utc,
-            Card.next_review_at < today_end_utc
+            Card.next_review_at < today_end_utc  # 包含今天及之前的所有卡片（已过期+今天到期）
         )
     )
     total = count_result.scalar()

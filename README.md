@@ -75,14 +75,11 @@ source venv/bin/activate  # 重新激活虚拟环境
 uvicorn app.main:app --reload --port 8001  # 启动服务
 ```
 
-
 ## 快速启动
 1. 一键启动（推荐）
 ```bash
-# 给启动脚本添加执行权限
-# 运行启动脚本
-chmod +x scripts/start.sh
-./scripts/start.sh
+# 给启动脚本添加执行权限 & 运行启动脚本
+chmod +x scripts/start.sh && ./scripts/start.sh
 ```
 
 2. 或者手动启动：
