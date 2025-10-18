@@ -58,21 +58,19 @@ async def list_cards(
 @router.get("/review", response_model=CardListResponse)
 async def get_cards_for_review(
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id),
-    page: int = Query(1, ge=1, description="页码"),
-    per_page: int = Query(20, ge=1, le=100, description="每页数量")
+    user_id: int = Depends(deps.get_current_user_id)
 ) -> CardListResponse:
-    """获取需要复习的卡片列表"""
+    """获取需要复习的卡片列表（返回所有需要复习的卡片，不分页）"""
     cards, total = await crud_card.get_cards_to_review(
         db=db,
         user_id=user_id,
-        page=page,
-        per_page=per_page
+        page=1,
+        per_page=1000  # 设置一个足够大的值来获取所有卡片
     )
     return CardListResponse(
         total=total,
-        page=page,
-        per_page=per_page,
+        page=1,  # 固定为第1页
+        per_page=total,  # 每页数量等于总数量，这样前端就不会显示分页
         items=cards
     )
 
@@ -167,4 +165,4 @@ async def update_review_status(
         # 记录详细错误信息
         print(f"Error in update_review_status: {str(e)}")
         print(f"Card ID: {card_id}, User ID: {user_id}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

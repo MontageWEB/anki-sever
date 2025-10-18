@@ -300,20 +300,25 @@ async def update_review_progress(
         # 增加复习次数
         db_card.review_count += 1
         # 计算下次复习时间，实时查 review_rules 表
-        total_days = 0
-        for i in range(1, db_card.review_count + 1):
-            result = await db.execute(
-                select(ReviewRule.interval_days).where(
-                    ReviewRule.review_count == i,
-                    ReviewRule.user_id == db_card.user_id
-                )
+        # 根据PRD要求：第20次复习之后的所有复习，将沿用用户设置的第20次复习间隔天数
+        target_review_count = db_card.review_count
+        # 如果复习次数超过20次，使用第20次的规则
+        if target_review_count > 20:
+            target_review_count = 20
+            
+        result = await db.execute(
+            select(ReviewRule.interval_days).where(
+                ReviewRule.review_count == target_review_count,
+                ReviewRule.user_id == db_card.user_id
             )
-            interval_days = result.scalar_one_or_none()
-            if interval_days is not None:
-                total_days += interval_days
-            else:
-                # 没有找到规则，默认加 1 天
-                total_days += 1
+        )
+        interval_days = result.scalar_one_or_none()
+        
+        if interval_days is not None:
+            total_days = interval_days
+        else:
+            # 没有找到规则，默认加 1 天
+            total_days = 1
         
         # 优先使用 next_review_at 作为基准时间，如果不存在则使用 first_review_at
         base_time = db_card.next_review_at if db_card.next_review_at else db_card.first_review_at
@@ -555,4 +560,4 @@ async def validate_and_fix_card_data(db: AsyncSession, card: Card) -> bool:
         await db.commit()
         await db.refresh(card)
     
-    return fixed 
+    return fixed
