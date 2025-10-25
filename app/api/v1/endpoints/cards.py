@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,21 +17,32 @@ from app.schemas.card import (
 
 router = APIRouter()
 
+# 定时清理过期的会话数据（可选实现，可以在应用启动时设置定时任务）
+def schedule_session_cleanup():
+    # 这里可以添加定时任务逻辑
+    # 例如使用APScheduler库设置每小时执行一次cleanup_expired_sessions
+    pass
+
 
 @router.post("", response_model=CardResponse)
 async def create_card(
     card_in: CardCreate,
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> CardResponse:
-    """创建新的知识卡片"""
+    """创建新的知识卡片
+    
+    注意：
+    - 已登录用户创建的卡片将保存到数据库
+    - 未登录用户（访客模式）创建的卡片为临时演示数据，下次访问时将重置为系统默认演示数据
+    """
     return await crud_card.create_card(db=db, card=card_in, user_id=user_id)
 
 
 @router.get("", response_model=CardListResponse)
 async def list_cards(
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id),
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional),
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 20,
     search: str | None = None,
@@ -58,7 +69,7 @@ async def list_cards(
 @router.get("/review", response_model=CardListResponse)
 async def get_cards_for_review(
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> CardListResponse:
     """获取需要复习的卡片列表（返回所有需要复习的卡片，不分页）"""
     cards, total = await crud_card.get_cards_to_review(
@@ -79,15 +90,16 @@ async def get_cards_for_review(
 async def get_card(
     card_id: int,
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> CardResponse:
     """获取单个卡片的详细信息"""
     db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
     
-    # 验证并修复数据一致性问题
-    await crud_card.validate_and_fix_card_data(db=db, card=db_card)
+    # 验证并修复数据一致性问题（仅对登录用户的卡片）
+    if user_id is not None:
+        await crud_card.validate_and_fix_card_data(db=db, card=db_card)
     
     return db_card
 
@@ -97,9 +109,14 @@ async def update_card(
     card_id: int,
     card_in: CardUpdate,
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> CardResponse:
-    """更新卡片内容"""
+    """更新卡片内容
+    
+    注意：
+    - 已登录用户只能更新自己的卡片
+    - 未登录用户（访客模式）可以更新临时演示数据，下次访问时将重置为系统默认演示数据
+    """
     db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -110,9 +127,14 @@ async def update_card(
 async def delete_card(
     card_id: int,
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> SuccessResponse:
-    """删除指定卡片"""
+    """删除指定卡片
+    
+    注意：
+    - 已登录用户只能删除自己的卡片
+    - 未登录用户（访客模式）可以删除临时演示数据，下次访问时将重置为系统默认演示数据
+    """
     db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -125,9 +147,14 @@ async def update_next_review(
     card_id: int,
     next_review: NextReviewUpdate,
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> CardResponse:
-    """修改卡片的下次复习时间，不影响复习次数和复习规则"""
+    """修改卡片的下次复习时间，不影响复习次数和复习规则
+    
+    注意：
+    - 已登录用户修改的复习时间将保存到数据库
+    - 未登录用户（访客模式）修改的复习时间为临时演示数据，下次访问时将重置为系统默认演示数据
+    """
     db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
     if db_card is None:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -143,9 +170,14 @@ async def update_review_status(
     card_id: int,
     review: ReviewUpdate,
     db: AsyncSession = Depends(deps.get_db),
-    user_id: int = Depends(deps.get_current_user_id)
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
 ) -> CardResponse:
-    """更新卡片的复习状态"""
+    """更新卡片的复习状态
+    
+    注意：
+    - 已登录用户的复习进度将保存到数据库
+    - 未登录用户（访客模式）的复习进度为临时演示数据，下次访问时将重置为系统默认演示数据
+    """
     try:
         db_card = await crud_card.get_card(db=db, card_id=card_id, user_id=user_id)
         if db_card is None:

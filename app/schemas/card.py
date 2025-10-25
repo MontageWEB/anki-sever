@@ -95,13 +95,28 @@ class CardInDBBase(CardBase):
     )
 
 
-class CardResponse(CardInDBBase):
+class CardResponse(BaseModel):
     """
     卡片响应模型
     用于 API 响应
-    目前与 CardInDB 相同，但可以在需要时添加额外的字段或隐藏某些字段
+    允许user_id为None，以支持访客模式
     """
-    pass
+    id: int = Field(..., description="卡片ID")
+    question: str = Field(..., description="知识点/问题")
+    answer: str = Field(..., description="答案/解释")
+    review_count: int = Field(..., description="复习次数")
+    next_review_at: datetime = Field(..., description="下次复习时间（东八区时间）")
+    first_review_at: Optional[datetime] = Field(None, description="首次复习时间（东八区时间）")
+    created_at: datetime = Field(..., description="创建时间（东八区时间）")
+    updated_at: datetime = Field(..., description="更新时间（东八区时间）")
+    user_id: Optional[int] = Field(None, description="用户ID")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    )
 
 
 class CardInDB(CardInDBBase):
@@ -130,4 +145,4 @@ class SuccessResponse(BaseModel):
     """
     success: bool = True
     message: str
-    data: dict | None = None 
+    data: dict | None = None
