@@ -46,7 +46,7 @@ async def list_cards(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 20,
     search: str | None = None,
-    filter_tag: str = Query("all", description="筛选标签，可选值：all（全部）、today（今日复习）、tomorrow（明日复习）")
+    filter_tag: str = Query("all", description="筛选标签，可选值：all（全部）、today（今日复习）、tomorrow（明日复习）、week（近7天）")
 ) -> CardListResponse:
     """获取卡片列表，支持分页、搜索和筛选标签"""
     skip = (page - 1) * per_page

@@ -183,6 +183,12 @@ def get_demo_cards(skip: int = 0, limit: int = 20, search: Optional[str] = None,
             if card["next_review_at"] >= now + timedelta(days=1) 
             and card["next_review_at"] < now + timedelta(days=2)
         ]
+    elif filter_tag == "week":
+        filtered_cards = [
+            card for card in filtered_cards 
+            if card["next_review_at"] >= now 
+            and card["next_review_at"] < now + timedelta(days=7)
+        ]
     
     # 排序
     filtered_cards.sort(key=lambda x: (x["next_review_at"], x["created_at"]))
@@ -500,6 +506,20 @@ async def get_cards(
         query = query.filter(
             Card.next_review_at >= tomorrow_start_utc,
             Card.next_review_at < day_after_tomorrow_start_utc
+        )
+    elif filter_tag == "week":
+        # 近7天复习：基于用户本地时间（北京时间）判断 - 包含今天到第7天
+        from datetime import timezone, timedelta
+        beijing_tz = timezone(timedelta(hours=8))
+        now_beijing = datetime.now(beijing_tz)
+        today_start_beijing = datetime(now_beijing.year, now_beijing.month, now_beijing.day, tzinfo=beijing_tz)
+        week_end_beijing = today_start_beijing + timedelta(days=7)
+        # 转换为UTC时间进行比较
+        today_start_utc = today_start_beijing.astimezone(timezone.utc)
+        week_end_utc = week_end_beijing.astimezone(timezone.utc)
+        query = query.filter(
+            Card.next_review_at >= today_start_utc,
+            Card.next_review_at < week_end_utc
         )
     # filter_tag == "all" 时不添加额外筛选条件
     
