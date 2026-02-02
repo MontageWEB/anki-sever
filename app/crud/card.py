@@ -987,3 +987,128 @@ async def validate_and_fix_card_data(db: AsyncSession, card: Card) -> bool:
         await db.refresh(card)
     
     return fixed
+
+
+async def get_card_stats(db: AsyncSession, user_id: Optional[int] = None) -> dict:
+    """
+    获取卡片统计数据
+    
+    参数：
+        db: 数据库会话
+        user_id: 用户ID（可选，为None时返回演示卡片统计）
+        
+    返回：
+        dict: 包含不同筛选条件下的卡片数量
+            - all: 全部卡片数量
+            - today: 今日复习卡片数量
+            - tomorrow: 明日复习卡片数量
+            - week: 近7天复习卡片数量
+    """
+    # 未登录用户返回演示卡片统计
+    if user_id is None:
+        return get_demo_card_stats()
+    
+    from datetime import datetime, timezone, timedelta
+    
+    # 获取北京时间
+    beijing_tz = timezone(timedelta(hours=8))
+    now_beijing = datetime.now(beijing_tz)
+    today_start_beijing = datetime(now_beijing.year, now_beijing.month, now_beijing.day, tzinfo=beijing_tz)
+    
+    # 转换为UTC时间
+    today_start_utc = today_start_beijing.astimezone(timezone.utc)
+    today_end_utc = today_start_beijing + timedelta(days=1)
+    tomorrow_start_utc = today_start_beijing + timedelta(days=1)
+    tomorrow_end_utc = today_start_beijing + timedelta(days=2)
+    week_end_utc = today_start_beijing + timedelta(days=7)
+    
+    # 统计全部卡片数量
+    all_count_result = await db.execute(
+        select(func.count(Card.id)).filter(Card.user_id == user_id)
+    )
+    all_count = all_count_result.scalar()
+    
+    # 统计今日复习卡片数量（包含已过期的卡片）
+    today_count_result = await db.execute(
+        select(func.count(Card.id)).filter(
+            Card.user_id == user_id,
+            Card.next_review_at < today_end_utc
+        )
+    )
+    today_count = today_count_result.scalar()
+    
+    # 统计明日复习卡片数量
+    tomorrow_count_result = await db.execute(
+        select(func.count(Card.id)).filter(
+            Card.user_id == user_id,
+            Card.next_review_at >= tomorrow_start_utc,
+            Card.next_review_at < tomorrow_end_utc
+        )
+    )
+    tomorrow_count = tomorrow_count_result.scalar()
+    
+    # 统计近7天复习卡片数量
+    week_count_result = await db.execute(
+        select(func.count(Card.id)).filter(
+            Card.user_id == user_id,
+            Card.next_review_at >= today_start_utc,
+            Card.next_review_at < week_end_utc
+        )
+    )
+    week_count = week_count_result.scalar()
+    
+    return {
+        "all": all_count,
+        "today": today_count,
+        "tomorrow": tomorrow_count,
+        "week": week_count
+    }
+
+
+def get_demo_card_stats(session_id: str = None) -> dict:
+    """
+    获取演示卡片统计数据
+    
+    参数：
+        session_id: 会话ID（可选）
+        
+    返回：
+        dict: 包含不同筛选条件下的卡片数量
+    """
+    if session_id is None:
+        session_id = get_session_id()
+    
+    session_cards = get_or_init_session_cards(session_id)
+    update_session_activity(session_id)
+    
+    now = datetime.now(timezone.utc)
+    
+    # 统计全部卡片数量
+    all_count = len(session_cards)
+    
+    # 统计今日复习卡片数量
+    today_count = len([
+        card for card in session_cards 
+        if card["next_review_at"] < now + timedelta(days=1)
+    ])
+    
+    # 统计明日复习卡片数量
+    tomorrow_count = len([
+        card for card in session_cards 
+        if card["next_review_at"] >= now + timedelta(days=1) 
+        and card["next_review_at"] < now + timedelta(days=2)
+    ])
+    
+    # 统计近7天复习卡片数量
+    week_count = len([
+        card for card in session_cards 
+        if card["next_review_at"] >= now 
+        and card["next_review_at"] < now + timedelta(days=7)
+    ])
+    
+    return {
+        "all": all_count,
+        "today": today_count,
+        "tomorrow": tomorrow_count,
+        "week": week_count
+    }

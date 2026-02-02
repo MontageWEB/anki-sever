@@ -146,3 +146,14 @@ class SuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: dict | None = None
+
+
+class CardStatsResponse(BaseModel):
+    """
+    卡片统计响应模型
+    用于返回不同筛选条件下的卡片数量
+    """
+    all: int = Field(..., description="全部卡片数量")
+    today: int = Field(..., description="今日复习卡片数量")
+    tomorrow: int = Field(..., description="明日复习卡片数量")
+    week: int = Field(..., description="近7天复习卡片数量")

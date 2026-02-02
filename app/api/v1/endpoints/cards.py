@@ -12,7 +12,8 @@ from app.schemas.card import (
     CardListResponse,
     NextReviewUpdate,
     ReviewUpdate,
-    SuccessResponse
+    SuccessResponse,
+    CardStatsResponse
 )
 
 router = APIRouter()
@@ -84,6 +85,27 @@ async def get_cards_for_review(
         per_page=total,  # 每页数量等于总数量，这样前端就不会显示分页
         items=cards
     )
+
+
+@router.get("/stats", response_model=CardStatsResponse)
+async def get_card_statistics(
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
+) -> CardStatsResponse:
+    """获取卡片统计数据
+    
+    返回不同筛选条件下的卡片数量：
+    - all: 全部卡片数量
+    - today: 今日复习卡片数量（包含已过期的卡片）
+    - tomorrow: 明日复习卡片数量
+    - week: 近7天复习卡片数量
+    
+    注意：
+    - 已登录用户返回数据库中的卡片统计
+    - 未登录用户（访客模式）返回演示卡片统计
+    """
+    stats = await crud_card.get_card_stats(db=db, user_id=user_id)
+    return CardStatsResponse(**stats)
 
 
 @router.get("/{card_id}", response_model=CardResponse)
@@ -198,3 +220,24 @@ async def update_review_status(
         print(f"Error in update_review_status: {str(e)}")
         print(f"Card ID: {card_id}, User ID: {user_id}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get("/stats", response_model=CardStatsResponse)
+async def get_card_statistics(
+    db: AsyncSession = Depends(deps.get_db),
+    user_id: Optional[int] = Depends(deps.get_current_user_id_optional)
+) -> CardStatsResponse:
+    """获取卡片统计数据
+    
+    返回不同筛选条件下的卡片数量：
+    - all: 全部卡片数量
+    - today: 今日复习卡片数量（包含已过期的卡片）
+    - tomorrow: 明日复习卡片数量
+    - week: 近7天复习卡片数量
+    
+    注意：
+    - 已登录用户返回数据库中的卡片统计
+    - 未登录用户（访客模式）返回演示卡片统计
+    """
+    stats = await crud_card.get_card_stats(db=db, user_id=user_id)
+    return CardStatsResponse(**stats)
